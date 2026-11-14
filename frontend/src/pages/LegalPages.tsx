@@ -115,7 +115,8 @@ export function PrivacyPage() {
         <li>
           <strong>Open-data lookups.</strong> To build a plan, our server queries services such as Overture Maps,
           Wikidata, OpenStreetMap (Overpass and Nominatim), Photon and Wikivoyage with the city or address you
-          typed. These requests contain nothing that identifies you. Exchange rates are loaded from Frankfurter and
+          typed, or the point you picked on the map (sent to Photon to name it). These requests contain nothing that
+          identifies you. Exchange rates are loaded from Frankfurter and
           ExchangeRate-API, and those requests contain nothing about you or your trip.
         </li>
       </ul>

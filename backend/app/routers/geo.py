@@ -1,4 +1,5 @@
-"""Autocomplete: city names (offline GeoNames index) and addresses near a city (Photon).
+"""Autocomplete: city names (offline GeoNames index) and addresses near a city (Photon), and the name of a point
+picked on the map (Photon reverse).
 
 Nominatim's usage policy does not allow autocomplete, so addresses use Photon
 (komoot's OSM geocoder built for search-as-you-type).
@@ -108,3 +109,19 @@ def address_suggestions(q: str = Query(min_length=2, max_length=100),
     items = [x for x in map(_suggestion, features) if x]
     return {"query": q, "results": rank_addresses(items, q, lat, lng, limit),
             "attribution": "Search by Photon, data © OpenStreetMap contributors"}
+
+
+@router.get("/reverse")
+def reverse_lookup(lat: float = Query(ge=-90, le=90, allow_inf_nan=False),
+                   lng: float = Query(ge=-180, le=180, allow_inf_nan=False)) -> dict:
+    """The nearest named address to a point picked on the map. `result` is null when nothing is known there; the
+    point itself is what the planner uses, the name is only a label."""
+    s = get_settings()
+    try:
+        features = _photon(s.photon_reverse_url, s.open_user_agent, {"lat": lat, "lon": lng, "limit": 1, "lang": "en"})
+    except (httpx.HTTPError, ValueError) as exc:
+        raise ProviderRequestError(f"Looking up this point is unavailable ({exc.__class__.__name__})") from exc
+    found = next((x for x in map(_suggestion, features) if x), None)
+    # the label names the place; the coordinates stay the ones the traveller picked
+    result = {**found, "lat": lat, "lng": lng} if found else None
+    return {"result": result, "attribution": "Search by Photon, data © OpenStreetMap contributors"}

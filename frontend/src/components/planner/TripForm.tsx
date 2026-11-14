@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Map as MapIcon } from "lucide-react";
 import { api } from "../../services/api";
 import type {
   AddressSuggestion, ApiOptions, ApiStatus, CitySuggestion, LatLng, Pace, ParsedTrip, TransportMode, TripRequest, TripStyle,
@@ -8,6 +8,8 @@ import { MODE_LABEL, pretty } from "../../utils";
 import Autocomplete from "../ui/Autocomplete";
 import NumberInput from "../ui/NumberInput";
 import Select from "../ui/Select";
+import Sheet from "../ui/Sheet";
+import { Skeleton } from "../ui/Skeleton";
 import Stepper from "../ui/Stepper";
 import BoardingPass from "./BoardingPass";
 import ChipSelect from "./ChipSelect";
@@ -30,6 +32,8 @@ const STEPS = [
   { short: "Getting around", title: "How do you like to get around?" },
 ];
 const LAST = STEPS.length - 1;
+// Leaflet loads only when the traveller opens the map
+const StayPicker = lazy(() => import("./StayPicker"));
 
 interface Props {
   options: ApiOptions;
@@ -72,7 +76,8 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
   const [useCoords, setUseCoords] = useState(false);
   const [coords, setCoords] = useState({ lat: "", lng: "" });
   const [cityLoc, setCityLoc] = useState<LatLng | null>(null);       // from the city dropdown
-  const [pinned, setPinned] = useState<LatLng | null>(null);         // exact accommodation point from suggestions
+  const [pinned, setPinned] = useState<LatLng | null>(null);         // exact accommodation point (suggestion or map)
+  const [picking, setPicking] = useState(false);                     // the stay map is open
   // the destination country's own currency, offered as a one-click choice
   const [local, setLocal] = useState<{ currency: string; country: string } | null>(null);
   const panels = useRef<(HTMLElement | null)[]>([]);
@@ -120,6 +125,17 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
   })), [options.currencies, local]);
 
   const set = <K extends keyof TripRequest>(k: K, v: TripRequest[K]) => setReq((r) => ({ ...r, [k]: v }));
+  /** A spot picked on the map: its address names the stay (or the typed name stays, or the coordinates), the point is exact. */
+  const pickStay = (point: LatLng, place: AddressSuggestion | null) => {
+    setReq((r) => {
+      const typed = r.accommodation.name_or_address.trim();
+      const name = place?.label ?? (typed.length >= 2 ? typed : `Pinned spot ${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`);
+      return { ...r, accommodation: { ...r.accommodation, name_or_address: name.slice(0, 300) } };
+    });
+    setPinned(point);
+    setUseCoords(false);
+    setPicking(false);
+  };
   const toggleMode = (m: TransportMode) =>
     set("transport_modes", req.transport_modes.includes(m) ? req.transport_modes.filter((x) => x !== m) : [...req.transport_modes, m]);
 
@@ -210,8 +226,14 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
               renderItem={(a) => <span className="ac-item">{a.label}{a.kind && <span className="muted small"> · {a.kind.replace(/_/g, " ")}</span>}</span>}
               footer={cityLoc ? "Results near your destination · Photon / OpenStreetMap" : "Photon / OpenStreetMap"}
             />
+            <div className="stay-actions mt-s">
+              <button type="button" className="btn btn-ghost stay-map-btn" disabled={!cityLoc} onClick={() => setPicking(true)}>
+                <MapIcon size={16} aria-hidden /> {pinned ? "Move the pin on the map" : "Pick it on the map"}
+              </button>
+              {!cityLoc && <span className="small muted">Choose the city first.</span>}
+            </div>
             {pinned && !useCoords && (
-              <p className="small muted mt-xs">Exact location pinned: {pinned.lat.toFixed(5)}, {pinned.lng.toFixed(5)}</p>
+              <p className="small muted mt-xs">Exact location pinned: <span className="num">{pinned.lat.toFixed(5)}, {pinned.lng.toFixed(5)}</span></p>
             )}
             <label className="check mt-s">
               <input type="checkbox" checked={useCoords} onChange={(e) => setUseCoords(e.target.checked)} />
@@ -342,6 +364,14 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
       </form>
 
       <BoardingPass req={req} step={step} steps={STEPS.length} />
+
+      <Sheet open={picking && !!cityLoc} onClose={() => setPicking(false)} title="Where are you staying?">
+        {cityLoc && (
+          <Suspense fallback={<Skeleton h={340} r={12} />}>
+            <StayPicker center={pinned ?? cityLoc} initial={pinned} onPick={pickStay} />
+          </Suspense>
+        )}
+      </Sheet>
     </div>
   );
 }

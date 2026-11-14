@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     data_dir: str = str(BACKEND_DIR / "data")
     geonames_url: str = "https://download.geonames.org/export/dump"
     photon_url: str = "https://photon.komoot.io/api/"
+    photon_reverse_url: str = "https://photon.komoot.io/reverse"   # "what is here?" for a point picked on the map
 
     # ---- AI -----------------------------------------------------------------
     anthropic_api_key: str = ""

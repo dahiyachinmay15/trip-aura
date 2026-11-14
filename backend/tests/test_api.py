@@ -127,6 +127,45 @@ def test_address_search_matches_inside_names_and_stays_local(client, monkeypatch
     assert {c["q"] for c in calls} == {"inn", "inn Jaipur"}
 
 
+def test_reverse_lookup_names_a_picked_point_and_keeps_its_coordinates(client, monkeypatch):
+    from app.routers import geo
+
+    calls = []
+
+    def fake_get(url, params=None, **kw):
+        calls.append((url, params))
+        feat = {"properties": {"name": "Hotel Avenida", "street": "Rua 1", "city": "Lisbon", "osm_value": "hotel"},
+                "geometry": {"coordinates": [-9.1400, 38.7150]}}
+        return httpx.Response(200, json={"features": [feat]}, request=httpx.Request("GET", "https://photon.test"))
+
+    monkeypatch.setattr(geo.httpx, "get", fake_get)
+    r = client.get("/api/geo/reverse", params={"lat": 38.7139, "lng": -9.1394})
+    assert r.status_code == 200
+    res = r.json()["result"]
+    assert res["label"] == "Hotel Avenida, Rua 1, Lisbon" and res["kind"] == "hotel"
+    # the picked point wins over the matched feature's point
+    assert (res["lat"], res["lng"]) == (38.7139, -9.1394)
+    assert calls[0][0].endswith("/reverse") and calls[0][1]["lat"] == 38.7139
+
+
+def test_reverse_lookup_reports_nothing_found_and_failures(client, monkeypatch):
+    from app.routers import geo
+
+    empty = httpx.Response(200, json={"features": []}, request=httpx.Request("GET", "https://photon.test"))
+    monkeypatch.setattr(geo.httpx, "get", lambda *a, **k: empty)
+    r = client.get("/api/geo/reverse", params={"lat": 0, "lng": 0})
+    assert r.status_code == 200 and r.json()["result"] is None
+
+    def down(*a, **k):
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(geo.httpx, "get", down)
+    r = client.get("/api/geo/reverse", params={"lat": 10, "lng": 10})
+    assert r.status_code >= 500 and r.json()["error"]["code"]
+    assert client.get("/api/geo/reverse", params={"lat": 91, "lng": 0}).status_code == 422
+    assert client.get("/api/geo/reverse", params={"lat": "nan", "lng": 0}).status_code == 422
+
+
 def test_trip_style_changes_what_the_plan_spends(client, base_request):
     totals = {}
     for style in ("budget", "mid", "premium"):

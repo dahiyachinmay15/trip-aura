@@ -958,3 +958,17 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
   .pd-end { break-before: page; }
   .pd-foot { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid var(--line); }
 }
+
+/* ---------- the stay picked on a map (planner) ---------- */
+.stay-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.stay-map-btn { padding-left: 10px; padding-right: 12px; margin-left: -10px; color: var(--primary); }
+.stay-map-btn:disabled { color: var(--muted); }
+.stay-picker { display: grid; gap: 10px; }
+.stay-picker > p { margin: 0; }
+.stay-map { height: min(56dvh, 460px); }
+.stay-pin span {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--cta); color: var(--on-cta);
+  font: 700 13px/1 var(--font-mono); border: 2px solid var(--surface); box-shadow: 0 4px 12px rgba(20, 26, 31, .3); cursor: grab;
+}
+.stay-picker-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.stay-picker-foot p { margin: 0; flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }

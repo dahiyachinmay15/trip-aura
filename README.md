@@ -20,7 +20,7 @@ Give it a city and where you're staying, plus your dates, budget, interests, die
 - **Honest numbers.** Every rating and price says where it came from, estimates are labelled, and the fit score never uses outside ratings.
 - **Any currency, local one first.** Plan in any of 150 currencies. Pick a city and the form offers the one used there (EUR for Lisbon, PKR for Karachi) in one click. Rates come from the European Central Bank where it publishes them, and from ExchangeRate-API otherwise.
 - **Type it instead.** A one-sentence description fills in the whole form; city and interest matching handle typos.
-- **Finds your hotel.** The hotel search stays in your destination and matches a word anywhere in a name, so "inn" finds Holiday Inn and Golden Inn, with places to stay listed first.
+- **Finds your hotel.** The hotel search stays in your destination and matches a word anywhere in a name, so "inn" finds Holiday Inn and Golden Inn, with places to stay listed first. Or skip the search: pick the spot on a map of the city, and every day starts from exactly there.
 - **Made to be used.** A 3D globe with every country outlined, lit where it is daytime right now, that turns to your destination; a planner that asks one question at a time while a boarding pass fills in beside it; and, on the home page, the four steps of planning with a working demo of the route ordering. Each plan opens as a ticket with a ribbon of how every day is spent and charts of where the budget goes.
 - **Take it with you.** Download any plan as a PDF: a cover with the totals and budget, a page per day with times, stops, rides and costs, then food, notes and sources.
 - **No account.** Plans are saved in your browser on this device. They do not sync, and clearing site data removes them.
@@ -65,7 +65,7 @@ flowchart LR
 | `backend/app/services/` | Orchestration (`itinerary_service.py`), FX, Google enrichment |
 | `backend/app/routers/` | REST API |
 | `frontend/src/pages/` | Planner (home), trip, saved trips, legal, 404 |
-| `frontend/src/components/` | `home/` (departure board, how-a-plan-is-made section with the route demo), `planner/` (five-step planner, boarding pass, describe box, progress), `trip/` (ticket, day cards, ribbon, budget, places, PDF layout), `globe/` (three.js Earth), `map/`, `layout/`, `ui/` (dropdown, stepper, sheet...), `art/` |
+| `frontend/src/components/` | `home/` (departure board, how-a-plan-is-made section with the route demo), `planner/` (five-step planner, boarding pass, map picker for the stay, describe box, progress), `trip/` (ticket, day cards, ribbon, budget, places, PDF layout), `globe/` (three.js Earth), `map/`, `layout/`, `ui/` (dropdown, stepper, sheet...), `art/` |
 | `frontend/src/lib/` | Saved trips in local storage, data cache, toasts, page titles, motion helpers |
 | `.github/` | CI (tests + build), Dependabot, PR template |
 
@@ -133,6 +133,7 @@ See [HANDOFF.md](HANDOFF.md#8-deployment-status) for deployment details and outs
 |---|---|---|
 | POST | `/api/trips/preview` | Generate an itinerary without saving it on the server |
 | GET | `/api/geo/cities?q=` · `/api/geo/addresses?q=&lat=&lng=&city=` | City and hotel autocomplete |
+| GET | `/api/geo/reverse?lat=&lng=` | The nearest address to a point picked on the map |
 | POST | `/api/nlp/parse-trip` | Free-text description → form fields |
 | GET | `/api/meta/status` · `/api/health` | Configuration status · health check |
 

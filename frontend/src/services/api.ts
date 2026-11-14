@@ -44,6 +44,8 @@ export const api = {
     request<{ results: AddressSuggestion[] }>(
       `/api/geo/addresses?q=${encodeURIComponent(q)}${near ? `&lat=${near.lat}&lng=${near.lng}` : ""}`
         + (city ? `&city=${encodeURIComponent(city)}` : ""), { signal }),
+  reverseLookup: (at: LatLng, signal?: AbortSignal) =>
+    request<{ result: AddressSuggestion | null }>(`/api/geo/reverse?lat=${at.lat}&lng=${at.lng}`, { signal }),
   parseTrip: (text: string) =>
     request<ParsedTrip>("/api/nlp/parse-trip", { method: "POST", body: JSON.stringify({ text }) }),
 };
