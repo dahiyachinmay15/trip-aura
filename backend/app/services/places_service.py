@@ -4,10 +4,40 @@ always included so the itinerary can suggest places outside the user's interests
 """
 from __future__ import annotations
 
+import re
+
+from app.core.errors import TripAuraError
 from app.core.geo import haversine_km
+from app.core.text import fold
 from app.providers.base import CityContext, PlaceQuery, PlacesProvider
+from app.schemas.common import DataSource
 from app.schemas.place import Place, PlaceKind
-from app.schemas.trip import TripRequest
+from app.schemas.trip import MustSeeInput, TripRequest
+
+MUST_SEE_NAMED_M = 250   # a known place this close whose name shares a word is the same place
+MUST_SEE_NEAR_M = 60     # a point pinned this close to a known place is that place, whatever its label
+MUST_SEE_MAX_KM = 60     # farther than this from the city centre is not a day out from the stay
+
+
+def _words(name: str) -> set[str]:
+    return {w[:5] for w in re.findall(r"[a-z0-9]+", fold(name)) if len(w) >= 4}
+
+
+def match_must_see(item: MustSeeInput, pool: list[Place]) -> Place | None:
+    """The known place the traveller meant: a nearby place sharing a word of its name, else one right at the pin."""
+    words = _words(item.name)
+    best: tuple[tuple[int, float], Place] | None = None
+    for p in pool:
+        d = haversine_km(item.location.lat, item.location.lng, p.location.lat, p.location.lng) * 1000
+        if d > MUST_SEE_NAMED_M:
+            continue
+        named = bool(words & _words(p.name))
+        if not named and d > MUST_SEE_NEAR_M:
+            continue
+        key = (0 if named else 1, d)
+        if best is None or key < best[0]:
+            best = (key, p)
+    return best[1] if best else None
 
 INTEREST_QUERIES = {
     "museums": "museums", "monuments": "historical monuments", "cultural_centres": "cultural centres",
@@ -70,6 +100,42 @@ class PlacesService:
             queries.append(PlaceQuery(text=f"parks in {cname}", tag="parks", kind="attraction"))
         places = self._run(city, queries)
         return [p for p in places if p.kind in (PlaceKind.ATTRACTION, PlaceKind.PARK)]
+
+    def must_see_places(self, city: CityContext, items: list[MustSeeInput]) -> tuple[list[Place], list[str]]:
+        """The traveller's must-see places, matched to the city's data where possible (for real opening hours and
+        fees). A place the data does not have is planned from its name and point alone, and says so."""
+        if not items:
+            return [], []
+        warnings: list[str] = []
+        local_pool: list[Place] | None = None
+        if self._local:
+            local_pool = self._p.search(city, PlaceQuery(text="all", tag="all", kind="attraction", max_results=100_000))
+        out: list[Place] = []
+        seen: set[str] = set()
+        for i, item in enumerate(items):
+            away = haversine_km(city.center.lat, city.center.lng, item.location.lat, item.location.lng)
+            if away > MUST_SEE_MAX_KM:
+                warnings.append(f"Left out {item.name} from your must-see list: it is {away:.0f} km from the centre "
+                                f"of {city.name.split(',')[0]}, too far for a day plan from your stay.")
+                continue
+            pool = local_pool
+            if pool is None:
+                try:
+                    pool = self._p.search(city, PlaceQuery(text=item.name, tag="must_see", kind="attraction",
+                                                           max_results=5))
+                except TripAuraError:
+                    pool = []
+            found = match_must_see(item, pool)
+            if found is not None:
+                place = found.model_copy()
+            else:
+                place = Place(id=f"must-see-{i}", name=item.name, kind=PlaceKind.ATTRACTION, location=item.location,
+                              description="Added by you. The map data has no details for it, so its hours and price "
+                                          "are assumed.", source=DataSource.USER)
+            if place.id not in seen:
+                seen.add(place.id)
+                out.append(place)
+        return out, warnings
 
     def food_candidates(self, city: CityContext, req: TripRequest, limit: int = 800) -> list[Place]:
         cname = city.name.split(",")[0]

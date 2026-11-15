@@ -141,6 +141,9 @@ export interface BudgetSummary {
   suggestions: BudgetSuggestion[]; applied_optimizations: string[]; notes: string[];
 }
 
+/** A place the traveller does not want to miss (from the place search or pinned on the map). */
+export interface MustSee { name: string; location: LatLng }
+
 export interface AccommodationInput {
   type: string;
   name_or_address: string;
@@ -164,6 +167,7 @@ export interface TripRequest {
   return_to_accommodation: boolean;
   fit_to_budget: boolean;
   trip_style?: TripStyle;
+  must_see?: MustSee[];
 }
 
 export interface Itinerary {

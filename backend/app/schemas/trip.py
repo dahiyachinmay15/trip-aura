@@ -50,6 +50,17 @@ class AccommodationInput(BaseModel):
     location: LatLng | None = Field(default=None, description="Optional exact coordinates; skips geocoding.")
 
 
+
+class MustSeeInput(BaseModel):
+    """A place the traveller does not want to miss: chosen from the place search or pinned on the map."""
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=2, max_length=200)
+    location: LatLng
+
+
+MAX_MUST_SEE = 10
+
+
 PRESET_INTERESTS = [
     "museums", "monuments", "cultural_centres", "nature", "parks", "shopping",
     "architecture", "photography", "adventure", "history", "religious_sites",
@@ -89,6 +100,8 @@ class TripRequest(BaseModel):
     return_to_accommodation: bool = True
     fit_to_budget: bool = Field(default=False, description="Automatically swap to cheaper options when over budget.")
     trip_style: TripStyle = Field(default=TripStyle.MID, description="Lowest cost, mid-range or premium.")
+    must_see: list[MustSeeInput] = Field(default_factory=list, max_length=MAX_MUST_SEE,
+                                         description="Places always fitted into the plan when they are open.")
 
     @field_validator("interests", "food_preferences", "food_categories")
     @classmethod

@@ -52,6 +52,10 @@ export default function BoardingPass({ req, step, steps }: { req: TripRequest; s
         <Cell label="Style" value={STYLE_LABEL[req.trip_style ?? "mid"]} />
         <Cell label="Pace" value={pretty(req.pace)} />
         <Cell label="Into" value={interests || "—"} wide />
+        {(req.must_see?.length ?? 0) > 0 && (
+          <Cell label="Must see" wide value={req.must_see!.slice(0, 2).map((m) => m.name.split(",")[0]).join(", ")
+            + (req.must_see!.length > 2 ? ` +${req.must_see!.length - 2}` : "")} />
+        )}
       </dl>
 
       <footer className="pass-foot">

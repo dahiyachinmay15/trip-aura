@@ -3,7 +3,7 @@
 > **Purpose:** everything a developer or AI coding agent needs to continue this project without the original conversation.
 > **Rule:** update this file in the **same commit** as any change to code, config, deployment or plans (see [How to update this file](#how-to-update-this-file)).
 
-**Last updated:** 2026-11-15 · **Branch:** `main` · **Latest change:** **v2.6.1**: long amounts in any currency no longer overflow the budget ring or the ticket
+**Last updated:** 2026-11-15 · **Branch:** `main` · **Latest change:** **v2.7.0**: must-see places, named or picked on a map, are always fitted into the plan
 **Authors:** Ranjan Verma (GitHub `ranjanvrma`) and Chinmay Dahiya
 
 ---
@@ -61,6 +61,7 @@ git config core.hooksPath .githooks     # once per clone
 - days (1–14) and travellers
 - total budget and currency (150 supported), plus optional accommodation cost
 - interests (presets plus custom text), diets, food categories, transport modes
+- must-see places (up to 10, optional): found with the place search or picked on the map; each is matched to the city's own record when one is near with a shared name word (or right at the pin), so real hours and fees apply, and otherwise planned from its name and point with assumed hours. They skip the score, rating and fee thresholds, are spread over the days, and one that cannot fit (closed every trip day, no free slot, over 60 km from the centre) is listed first under unscheduled with a warning
 - pace: relaxed, moderate or packed
 - toggles: "end each day at hotel" and "fit to budget"
 - or free text ("4 days in Lisbon with my wife, vegetarian, budget 900 euros...") that fills the form
@@ -97,7 +98,7 @@ Diagram and request flow: README → *Architecture*. Key files:
 | NLP | `nlp/city_index.py` (GeoNames cities15000, fuzzy), `trip_parser.py`, `interests.py`, `semantic.py` (fastembed bge-small), `sentiment.py`, `registry.py` |
 | API | `routers/` trip preview, geo autocomplete, NLP parsing, metadata, and routing. Sign-in, sessions, server-side saved trips, idempotency records and live location were removed (old tables in existing databases are simply unused). Security that remains: Origin check on POST, per-IP rate limits (`generate` 6/min on `/api/trips/preview`), security headers, input limits, safe URLs; CORS without credentials |
 | API and security | `routers/` contains itinerary generation (`/api/trips/preview`), geo autocomplete, NLP parsing, status/options and routing; `core/security.py` provides security headers, origin checks and per-IP limits. Account routes are not mounted. |
-| Frontend | `App.tsx` (lazy routes, server wake-up retry), `pages/` (Planner, Trip, Trips, Legal, NotFound), `components/` grouped by feature: `planner/` (form, map picker for the stay, rotating trip examples, progress panel), `trip/` (ticket header, itinerary edit sheet, day cards and ribbon, place details, budget charts, food), `globe/` (three.js Earth, lazy chunk), `map/`, `layout/` (shell, command menu, banners), `ui/` (sheet, skeleton, key, autocomplete, retry notice), `art/` (seeded contour artwork); `lib/localTrips.ts` (saved itineraries in local storage), `lib/trips.ts` (delete + undo), `services/api.ts` (public API calls), `vite.config.ts` (production CSP, pre-rendered route heads, version injection) |
+| Frontend | `App.tsx` (lazy routes, server wake-up retry), `pages/` (Planner, Trip, Trips, Legal, NotFound), `components/` grouped by feature: `planner/` (form, map picker for the stay and must-see places, rotating trip examples, progress panel), `trip/` (ticket header, itinerary edit sheet, day cards and ribbon, place details, budget charts, food), `globe/` (three.js Earth, lazy chunk), `map/`, `layout/` (shell, command menu, banners), `ui/` (sheet, skeleton, key, autocomplete, retry notice), `art/` (seeded contour artwork); `lib/localTrips.ts` (saved itineraries in local storage), `lib/trips.ts` (delete + undo), `services/api.ts` (public API calls), `vite.config.ts` (production CSP, pre-rendered route heads, version injection) |
 | Repo tooling | `.github/workflows/ci.yml` (tests + build), `.github/dependabot.yml` (minor/patch only), `.github/pull_request_template.md`, `.githooks/pre-commit` (HANDOFF check) |
 | Production-ready code kept | Postgres support (`db/database.py` normalises `postgres://` URLs), `CORS_ORIGIN_REGEX`, startup warm-up (`WARMUP_ON_START`), DuckDB memory caps; Azure deployment files and workflow are present; live deployment details are in §8 |
 
@@ -198,7 +199,7 @@ CI (`ci.yml`) runs tests and the frontend build on every push.
    - Place photos (and BlurHash placeholders for them): the data has no images yet; Wikidata P18 / Wikimedia Commons is the free source. Only the globe uses a blurred placeholder today.
    - The current generation panel explains the work and shows elapsed time, but cannot report actual backend stages. True per-stage progress needs async loading and status polling.
    - Lottie: not used. Animations are Motion (sheets, toasts, menus), GSAP (scroll reveals, parallax, globe turns) and CSS. Add Lottie only with self-made or properly licensed animation files.
-3. **Owner's feature backlog:** the planned releases are listed at the end of §13, in order. Picking the stay on a map shipped in v2.5.0; picking sights on the map, or a guided chat, is next.
+3. **Owner's feature backlog:** the planned releases are listed at the end of §13, in order. Picking the stay on a map (v2.5.0) and must-see places (v2.7.0) have shipped; a guided chat is what is left of that item.
 4. **Credit Chinmay in GitHub contributors:** he commits with his GitHub email (his email is still unknown).
 5. **Dependabot:** review the currently open dependency PRs in GitHub. Minor and patch upgrades are grouped; major upgrades are ignored and should be considered separately with any required code changes.
 6. **Nice to have:**
@@ -242,7 +243,8 @@ CI (`ci.yml`) runs tests and the frontend build on every push.
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-15 | (this commit) | **v2.6.1.** Long amounts no longer overflow. The budget card printed the planned total inside the 132 px ring, so a sum like VND 7,162,504 spilled over the chart. The total now sits above the ring as its own line, and the ring shows the share of the budget used (">999%" past that). Legend rows, day bars, the budget line and the day card total wrap a long amount instead of pushing it out; the ticket's planned spend goes under its label and steps down a size when long. Checked in headless Edge at 1440 and 390 px with a 17-digit IDR plan: nothing outside the card or ticket, no page overflow, no console errors. Also fixed the change-log table (the v2.6.0 row sat above the separator line) |
+| 2026-11-15 | (this commit) | **v2.7.0.** Owner's backlog item "more ways in": **must-see places.** The planner's Tastes step has "Places you don't want to miss": a place search (Photon, near the destination) and "Pick one on the map" (the v2.5.0 map, now `planner/MapPicker.tsx` for both the stay and sights; places already added show as numbered pins). Up to 10, listed with remove buttons and on the boarding pass; cleared when the city changes. **API:** `TripRequest.must_see: [{name, location}]` (max 10, `extra=forbid`). **Backend:** `PlacesService.must_see_places` matches each to the city data (a place within 250 m sharing a name word, else one within 60 m of the pin; text search in live mode) or makes a `source=user` place with assumed hours; over 60 km from the centre is left out with a warning. **Scheduler:** must-sees skip the score, rating and fee thresholds (the score is still shown, with "On your must-see list" as the first reason), sort first so a near-duplicate never replaces one, get a per-day quota (ceil of those left over days left) with a bonus that outweighs any score, and anchor the day; any that is not planned is listed first under unscheduled with the reason and a warning. Cached city data is unchanged, so no `DATASET_VERSION` bump. Five new tests (181). Checked in headless Edge at 1440 and 390 px: Lisbon with Tower of Belem and the Oceanario from search and a point from the map, one per day in the plan, two matched to the city's records; no console errors, no page overflow. A map point named only by a postcode now takes the worded parts of its address |
+| 2026-11-15 | `214a6f9` | **v2.6.1.** Long amounts no longer overflow. The budget card printed the planned total inside the 132 px ring, so a sum like VND 7,162,504 spilled over the chart. The total now sits above the ring as its own line, and the ring shows the share of the budget used (">999%" past that). Legend rows, day bars, the budget line and the day card total wrap a long amount instead of pushing it out; the ticket's planned spend goes under its label and steps down a size when long. Checked in headless Edge at 1440 and 390 px with a 17-digit IDR plan: nothing outside the card or ticket, no page overflow, no console errors. Also fixed the change-log table (the v2.6.0 row sat above the separator line) |
 | 2026-11-15 | `973cf3d` | **v2.6.0.** The free-text planner now rotates through six example trips and avoids repeating the previous one. Saved itineraries have an **Edit your itinerary** sheet for quick changes to dates, length, travellers, budget, style, pace, interests, food and transport; submitting rebuilds the itinerary in place while keeping the current plan visible. The previous plan can be restored with Undo for eight seconds. |
 | 2026-11-14 | `7a0b2ec` | **v2.5.0.** First part of the owner's backlog item "another way in": **pick the stay on a map.** Once a city is chosen, the planner's first step offers "Pick it on the map" ("Move the pin on the map" once pinned). It opens a sheet with an OpenStreetMap map of the city (`planner/StayPicker.tsx`, lazy, so Leaflet is not in the home page's first download): tap to drop a pin, drag to adjust, and the nearest address is looked up and shown; "Stay here" pins the exact point and fills the stay field with that address (or keeps what was typed, or the coordinates, when no address is known or the lookup fails). New endpoint `GET /api/geo/reverse?lat=&lng=` (Photon reverse, setting `PHOTON_REVERSE_URL`): `result` is the nearest named address with the picked coordinates, or null; a failed lookup is an error the picker reports. Privacy page says a picked point is sent to Photon. Two new tests (176). Checked in headless Edge at 1440 and 390 px: Lisbon, pick a spot, address shown, Stay here, plan built from exactly that point; no console errors, no overflow. Also fixed stale lines in §3 (31 currencies, now 150) and escaped quotes in the header |
 | 2026-11-14 | `41347b8` | **v2.4.1.** At the owner's request the home page's "See how a plan comes together" section (three demo cards above a row of four steps) is reduced to "How a plan is made": the four steps as a short numbered list beside the one demo that shows something real, the route reordering on seven Lisbon places (52.2 km listed, 27.7 km reordered). The budget-by-style and pace demos and their CSS are removed; the trip page shows both for every real plan. Checked in headless Edge at 1440 and 390 px: no console errors, no overflow |
@@ -314,7 +316,8 @@ TripAura uses semantic versioning, `vMAJOR.MINOR.PATCH`:
 
 | Version | Commit | Date | What it is |
 |---|---|---|---|
-| v2.6.1 | (this commit) | 2026-11-15 | Long amounts fit the budget ring and the ticket in any currency |
+| v2.7.0 | (this commit) | 2026-11-15 | Must-see places, named or picked on a map, always fitted in |
+| v2.6.1 | `214a6f9` | 2026-11-15 | Long amounts fit the budget ring and the ticket in any currency |
 | v2.6.0 | `973cf3d` | 2026-11-15 | Edit and rebuild saved itineraries; rotating trip examples |
 | v2.5.0 | `7a0b2ec` | 2026-11-14 | Pick where you're staying on a map of the city |
 | v2.4.1 | `41347b8` | 2026-11-14 | Simpler "How a plan is made" section on the home page |
@@ -342,7 +345,7 @@ TripAura uses semantic versioning, `vMAJOR.MINOR.PATCH`:
 | v0.2.0 | `353b86d` | 2026-11-07 | Worldwide open-data mode, cost model and currency conversion |
 | v0.1.0 | `e492999` | 2026-11-07 | First planner: engines, Jaipur demo data, Google-ready providers |
 
-**Planned** (from the owner's backlog, in order): more ways in besides the planner (picking must-see sights on the map, or a guided chat); a graph-based planning engine; **v3.0.0 multi-destination trips** (A to B to C).
+**Planned** (from the owner's backlog, in order): a guided chat as another way in; a graph-based planning engine; **v3.0.0 multi-destination trips** (A to B to C).
 
 ---
 

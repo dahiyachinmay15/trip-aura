@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Map as MapIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Map as MapIcon, MapPin, X } from "lucide-react";
 import { api } from "../../services/api";
 import type {
-  AddressSuggestion, ApiOptions, ApiStatus, CitySuggestion, LatLng, Pace, ParsedTrip, TransportMode, TripRequest, TripStyle,
+  AddressSuggestion, ApiOptions, ApiStatus, CitySuggestion, LatLng, MustSee, Pace, ParsedTrip, TransportMode, TripRequest, TripStyle,
 } from "../../types";
 import { MODE_LABEL, pretty } from "../../utils";
 import Autocomplete from "../ui/Autocomplete";
@@ -33,7 +33,8 @@ const STEPS = [
 ];
 const LAST = STEPS.length - 1;
 // Leaflet loads only when the traveller opens the map
-const StayPicker = lazy(() => import("./StayPicker"));
+const MapPicker = lazy(() => import("./MapPicker"));
+const MAX_MUST_SEE = 10;   // the API's limit
 
 interface Props {
   options: ApiOptions;
@@ -71,13 +72,15 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
     return_to_accommodation: true,
     fit_to_budget: false,
     trip_style: "mid",
+    must_see: [],
   }));
   const [step, setStep] = useState(0);
   const [useCoords, setUseCoords] = useState(false);
   const [coords, setCoords] = useState({ lat: "", lng: "" });
   const [cityLoc, setCityLoc] = useState<LatLng | null>(null);       // from the city dropdown
   const [pinned, setPinned] = useState<LatLng | null>(null);         // exact accommodation point (suggestion or map)
-  const [picking, setPicking] = useState(false);                     // the stay map is open
+  const [picking, setPicking] = useState<"stay" | "sight" | null>(null);   // which map is open
+  const [sightQuery, setSightQuery] = useState("");
   // the destination country's own currency, offered as a one-click choice
   const [local, setLocal] = useState<{ currency: string; country: string } | null>(null);
   const panels = useRef<(HTMLElement | null)[]>([]);
@@ -105,6 +108,7 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
     const city = prefill.parsed.city;
     if (city) { setCityLoc({ lat: city.lat, lng: city.lng }); suggestCurrency(city); }
     if (city || f.accommodation?.name_or_address) setPinned(null);   // a pin belongs to the previous city or stay
+    if (city) setReq((r) => ({ ...r, must_see: [] }));                // and so do must-see places
     setStep(0);
   }, [prefill, options.currencies, suggestCurrency]);
 
@@ -134,8 +138,27 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
     });
     setPinned(point);
     setUseCoords(false);
-    setPicking(false);
+    setPicking(null);
   };
+  const mustSee = req.must_see ?? [];
+  /** Adds a must-see place, once: the same spot twice (within about 30 m) is the same place. */
+  const addSight = (name: string, location: LatLng) => {
+    setReq((r) => {
+      const list = r.must_see ?? [];
+      const same = list.some((m) => Math.abs(m.location.lat - location.lat) < 3e-4 && Math.abs(m.location.lng - location.lng) < 3e-4);
+      return same || list.length >= MAX_MUST_SEE ? r : { ...r, must_see: [...list, { name: name.slice(0, 200), location }] };
+    });
+  };
+  const pickSight = (point: LatLng, place: AddressSuggestion | null) => {
+    // a lookup can name a point by its postcode alone ("1250-096"); the parts of the address with words read better
+    const worded = (s: string) => /\p{L}/u.test(s);
+    const name = place && (worded(place.name) ? place.name
+      : place.label.split(",").map((x) => x.trim()).filter(worded).slice(0, 2).join(", "));
+    addSight(name || `Pinned spot ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`, point);
+    setPicking(null);
+  };
+  const removeSight = (m: MustSee) => set("must_see", mustSee.filter((x) => x !== m));
+  const sightPins = useMemo(() => mustSee.map((m, i) => ({ at: m.location, label: m.name, text: String(i + 1) })), [mustSee]);
   const toggleMode = (m: TransportMode) =>
     set("transport_modes", req.transport_modes.includes(m) ? req.transport_modes.filter((x) => x !== m) : [...req.transport_modes, m]);
 
@@ -197,8 +220,8 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
             <Autocomplete<CitySuggestion>
               inputId="city-input" value={req.destination_city} required minChars={2}
               placeholder={mock ? "Jaipur" : "Lisbon, Kyoto, Jaipur..."}
-              onChange={(v) => { set("destination_city", v); setCityLoc(null); setLocal(null); setPinned(null); }}
-              onSelect={(c) => { set("destination_city", c.query); setCityLoc({ lat: c.lat, lng: c.lng }); suggestCurrency(c); setPinned(null); }}
+              onChange={(v) => { set("destination_city", v); setCityLoc(null); setLocal(null); setPinned(null); set("must_see", []); }}
+              onSelect={(c) => { set("destination_city", c.query); setCityLoc({ lat: c.lat, lng: c.lng }); suggestCurrency(c); setPinned(null); set("must_see", []); }}
               fetchItems={fetchCities} itemKey={(c) => String(c.id)}
               renderItem={(c) => (
                 <span className="ac-item"><strong>{c.name}</strong>
@@ -227,7 +250,7 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
               footer={cityLoc ? "Results near your destination · Photon / OpenStreetMap" : "Photon / OpenStreetMap"}
             />
             <div className="stay-actions mt-s">
-              <button type="button" className="btn btn-ghost stay-map-btn" disabled={!cityLoc} onClick={() => setPicking(true)}>
+              <button type="button" className="btn btn-ghost stay-map-btn" disabled={!cityLoc} onClick={() => setPicking("stay")}>
                 <MapIcon size={16} aria-hidden /> {pinned ? "Move the pin on the map" : "Pick it on the map"}
               </button>
               {!cityLoc && <span className="small muted">Choose the city first.</span>}
@@ -311,6 +334,41 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
                       onChange={(v) => set("food_preferences", v)} placeholder="e.g. no garlic" />
           <ChipSelect label="Kinds of food" options={options.food_categories} value={req.food_categories}
                       onChange={(v) => set("food_categories", v)} placeholder="e.g. rooftop cafes" />
+          <fieldset className="field">
+            <legend>Places you don't want to miss <span className="muted">(optional)</span></legend>
+            {mustSee.length > 0 && (
+              <ol className="must-list">
+                {mustSee.map((m, i) => (
+                  <li key={`${m.location.lat},${m.location.lng}`}>
+                    <span className="must-n num" aria-hidden>{i + 1}</span>
+                    <span className="must-name">{m.name}</span>
+                    <button type="button" className="icon-btn hit" onClick={() => removeSight(m)} aria-label={`Remove ${m.name}`}>
+                      <X size={16} aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {mustSee.length < MAX_MUST_SEE ? (
+              <>
+                <Autocomplete<AddressSuggestion>
+                  inputId="sight-input" ariaLabel="Search for a place to add" value={sightQuery} minChars={3}
+                  placeholder={cityLoc ? "A sight, museum, viewpoint or any place" : "Choose the city first"}
+                  onChange={setSightQuery}
+                  onSelect={(a) => { addSight(a.name || a.label, { lat: a.lat, lng: a.lng }); setSightQuery(""); }}
+                  fetchItems={fetchAddresses} itemKey={(a) => `${a.lat},${a.lng},${a.label}`}
+                  renderItem={(a) => <span className="ac-item">{a.label}{a.kind && <span className="muted small"> · {a.kind.replace(/_/g, " ")}</span>}</span>}
+                  footer="Photon / OpenStreetMap"
+                />
+                <div className="stay-actions mt-s">
+                  <button type="button" className="btn btn-ghost stay-map-btn" disabled={!cityLoc} onClick={() => setPicking("sight")}>
+                    <MapPin size={16} aria-hidden /> Pick one on the map
+                  </button>
+                  <span className="small muted">{cityLoc ? "Each one is fitted into a day when it is open." : "Choose the city first."}</span>
+                </div>
+              </>
+            ) : <p className="small muted">That's the most one plan can hold ({MAX_MUST_SEE}).</p>}
+          </fieldset>
         </section>
 
         <section {...panel(4)}>
@@ -365,10 +423,17 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
 
       <BoardingPass req={req} step={step} steps={STEPS.length} />
 
-      <Sheet open={picking && !!cityLoc} onClose={() => setPicking(false)} title="Where are you staying?">
+      <Sheet open={!!picking && !!cityLoc} onClose={() => setPicking(null)}
+             title={picking === "sight" ? "Add a place you don't want to miss" : "Where are you staying?"}>
         {cityLoc && (
           <Suspense fallback={<Skeleton h={340} r={12} />}>
-            <StayPicker center={pinned ?? cityLoc} initial={pinned} onPick={pickStay} />
+            {picking === "sight" ? (
+              <MapPicker key="sight" center={cityLoc} initial={null} pinText={String(mustSee.length + 1)} others={sightPins}
+                         hint="Tap the place on the map, then drag the pin to adjust." confirmLabel="Add this place" onPick={pickSight} />
+            ) : (
+              <MapPicker key="stay" center={pinned ?? cityLoc} initial={pinned} pinText="H"
+                         hint="Tap the map where you are staying, then drag the pin to adjust." confirmLabel="Stay here" onPick={pickStay} />
+            )}
           </Suspense>
         )}
       </Sheet>

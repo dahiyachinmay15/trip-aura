@@ -47,6 +47,8 @@ class ScoringContext:
     daily_budget_pp: float = field(init=False)
     # attraction scores by place id: the budget optimiser re-plans up to three times with the same scores
     attraction_scores: dict[str, SuitabilityScore] = field(default_factory=dict)
+    # ids of the places the traveller asked to see: always planned when they are open on a trip day
+    must_see: set[str] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         self.pace = profile_for(self.req.pace)

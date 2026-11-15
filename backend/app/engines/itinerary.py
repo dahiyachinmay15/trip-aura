@@ -13,6 +13,7 @@ Two passes per day:
 from __future__ import annotations
 
 import datetime as dt
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -31,6 +32,7 @@ WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 MIN_SCORE = 1.5
 MIN_EXTERNAL_RATING = 3.3
 MAX_WAIT_MIN = 60
+MUST_SEE_BONUS = 3.0   # outweighs any score and any sensible detour, so a must-see is placed first
 FAR_FROM_HOME_MIN = 40   # beyond this, dinner is taken near the accommodation, not by the last sight
 LUNCH_BY = LUNCH_WINDOW[1]                # with lunch still to come, a sight must end by this time
 LATEST_LUNCH_START = LUNCH_WINDOW[1] + 30  # so lunch starts by this, after the walk or ride to the restaurant
@@ -86,6 +88,12 @@ def rank_attractions(places: list[Place], ctx: ScoringContext, constraints: Plan
         if open_day_ratio(p, ctx.weekdays) == 0:
             rejected.append(UnscheduledPlace(place=p, reason="Closed on all days of your trip"))
             continue
+        if p.id in ctx.must_see:
+            # asked for by name: no rating, fee or score threshold applies; the score is still shown as it is
+            s = ctx.attraction_scores.get(p.id) or score_attraction(p, ctx)
+            ctx.attraction_scores[p.id] = s
+            ranked.append(Candidate(p, s.model_copy(update={"reasons": ["On your must-see list"] + s.reasons})))
+            continue
         er = p.external_rating
         if er and er.rating is not None and er.rating < MIN_EXTERNAL_RATING and (er.review_count or 0) >= 20:
             rejected.append(UnscheduledPlace(place=p, reason=f"Low {er.provider.value} rating ({er.rating})"))
@@ -101,8 +109,13 @@ def rank_attractions(places: list[Place], ctx: ScoringContext, constraints: Plan
             rejected.append(UnscheduledPlace(place=p, reason=f"Low suitability for you ({s.score}/5)"))
             continue
         ranked.append(Candidate(p, s))
-    ranked.sort(key=lambda c: (-c.score.score, c.place.name))
+    # must-sees first, so a near-duplicate of one never replaces it
+    ranked.sort(key=lambda c: (c.place.id not in ctx.must_see, -c.score.score, c.place.name))
     return _drop_near_duplicates(ranked), rejected
+
+
+def _lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:]
 
 
 def _stems(name: str) -> set[str]:
@@ -172,7 +185,10 @@ class ItineraryEngine:
         travel_total += self.transport.quick_minutes(loc, self.home.location)
         return True, travel_total
 
-    def _plan_day(self, weekday: int, pool: list[Candidate], used: set[str], want_park: bool) -> list[Candidate]:
+    def _plan_day(self, weekday: int, pool: list[Candidate], used: set[str], want_park: bool,
+                  must_quota: int = 0) -> list[Candidate]:
+        """`must_quota`: how many must-see places this day should take, so they spread over the trip."""
+        must = self.ctx.must_see
         t = self.first_activity
         loc = self.home.location
         lunch = False
@@ -187,7 +203,8 @@ class ItineraryEngine:
             dist_neutral = c.score.score + 5 * c.score.weights["distance"] * (1 - c.score.components["distance"])
             return dist_neutral + (0.5 if c.place.is_famous else 0) + c.place.typical_visit_minutes / 300
 
-        anchor = max(open_today, key=anchor_key, default=None)
+        musts_today = [c for c in open_today if c.place.id in must] if must_quota else []
+        anchor = max(musts_today or open_today, key=anchor_key, default=None)
         while len(seq) < self.max_acts:
             if not lunch and t >= LUNCH_WINDOW[0]:
                 t += self.lunch_block
@@ -213,6 +230,8 @@ class ItineraryEngine:
                         u += 0.6
                     elif anchor in seq:
                         u -= 0.04 * haversine_km(c.loc.lat, c.loc.lng, anchor.loc.lat, anchor.loc.lng)
+                if c.place.id in must and sum(s.place.id in must for s in seq) < must_quota:
+                    u += MUST_SEE_BONUS
                 if period_of(w[0]) in c.place.best_time:
                     u += 0.1
                 if want_park and c.place.kind == PlaceKind.PARK and not any(s.place.kind == PlaceKind.PARK for s in seq):
@@ -439,9 +458,12 @@ class ItineraryEngine:
         days: list[DayPlan] = []
         start = self.req.effective_start_date
         want_park = self.req.pace.value != "packed"
+        must = self.ctx.must_see
         for i in range(self.req.num_days):
             date = start + dt.timedelta(days=i)
-            seq = self._plan_day(date.weekday(), ranked, used, want_park)
+            left = sum(c.place.id in must and c.place.id not in used for c in ranked)
+            quota = math.ceil(left / (self.req.num_days - i)) if left else 0
+            seq = self._plan_day(date.weekday(), ranked, used, want_park, quota)
             for c in seq:
                 self._used_parks.add(c.place.id)
             days.append(self._materialise(i + 1, date, seq, used_food, dropped))
@@ -450,12 +472,22 @@ class ItineraryEngine:
         spare = [c for c in ranked if c.place.id not in scheduled]
         unscheduled: list[UnscheduledPlace] = []
         seen: set[str] = set()
+        warnings: list[str] = []
+        # a must-see that is not in the plan is always reported, first, with the reason
+        why = {u.place.id: u.reason for u in dropped}
+        no_slot = "no free time on a day when it is open"
+        missed = [(c.place, "did not fit: " + _lower_first(why.get(c.place.id, no_slot)))
+                  for c in ranked if c.place.id in must and c.place.id not in scheduled]
+        missed += [(u.place, "is " + _lower_first(u.reason)) for u in rejected if u.place.id in must]
+        for place, reason in missed:
+            unscheduled.append(UnscheduledPlace(place=place, reason=f"On your must-see list, but {reason}"))
+            warnings.append(f"{place.name} is on your must-see list but {reason}.")
+            seen.add(place.id)
         for u in dropped + [UnscheduledPlace(place=c.place, reason="Good match but did not fit in your days")
                             for c in spare[:8]] + rejected[:5]:
             if u.place.id not in seen and u.place.id not in scheduled:
                 seen.add(u.place.id)
                 unscheduled.append(u)
-        warnings = []
         if not ranked:
             warnings.append("No attractions matched your preferences and constraints.")
         return PlanResult(days=days, unscheduled=unscheduled, spare=spare, warnings=warnings)

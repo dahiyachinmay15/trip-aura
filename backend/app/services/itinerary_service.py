@@ -131,6 +131,11 @@ class ItineraryService:
         search_req = req.model_copy(update={"interests": expanded})
 
         attractions = self.places.attraction_candidates(city, search_req)[: self.settings.max_candidate_places]
+        must, must_warnings = self.places.must_see_places(city, req.must_see)
+        warnings += must_warnings
+        if must:
+            ctx.must_see = {p.id for p in must}
+            attractions = must + [a for a in attractions if a.id not in ctx.must_see]
         food_places = self.places.food_candidates(city, req, self.settings.max_food_candidates)
         log.info("Planning %s: %d attraction and %d food candidates (%s)", city.name, len(attractions),
                  len(food_places), self.source.value)
