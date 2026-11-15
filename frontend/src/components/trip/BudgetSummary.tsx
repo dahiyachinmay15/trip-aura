@@ -35,7 +35,8 @@ function Donut({ b }: { b: Budget }) {
 
 export default function BudgetSummary({ b }: { b: Budget }) {
   const f = (n: number) => fmtMoney(n, b.currency);
-  const pct = Math.min(100, (b.planned_total / b.total_budget) * 100);
+  const used = (b.planned_total / b.total_budget) * 100;
+  const pct = Math.min(100, used);
   const maxDay = Math.max(...b.per_day.map((d) => d.total), 1);
   const cats = CATS.map((c) => ({ ...c, value: b.by_category[c.key] })).filter((c) => c.value > 0);
 
@@ -43,12 +44,17 @@ export default function BudgetSummary({ b }: { b: Budget }) {
     <section className="tile budget" aria-labelledby="budget-title">
       <h2 id="budget-title" className="tile-title">Budget</h2>
 
+      {/* the total sits above the ring, not inside it: an amount like IDR 12,345,678,900 never fits in a 132px circle */}
+      <p className="budget-total">
+        <span className="small muted">Planned</span>
+        <strong className="num">{f(b.planned_total)}</strong>
+      </p>
       <div className="budget-hero">
         <div className="donut-wrap">
           <Donut b={b} />
-          <div className="donut-center">
-            <span className="small muted">Planned</span>
-            <strong className="num">{f(b.planned_total)}</strong>
+          <div className="donut-center" aria-hidden>
+            <strong className="num">{used >= 1000 ? ">999" : Math.round(used)}%</strong>
+            <span className="small muted">of budget</span>
           </div>
         </div>
         <ul className="budget-legend">

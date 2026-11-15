@@ -32,6 +32,7 @@ export default function TripTicket({ it, regenerating, onEdit, onRegenerate, onD
   const last = it.days[it.days.length - 1]?.date;
   const city = r.destination_city.split(",")[0];
   const region = r.destination_city.split(",").slice(1).join(",").trim();
+  const spend = fmtMoney(it.budget.planned_total, it.budget.currency);
 
   return (
     <header className="ticket">
@@ -65,9 +66,10 @@ export default function TripTicket({ it, regenerating, onEdit, onRegenerate, onD
         <div><dt>Sights</dt><dd className="num">{s.stops}</dd></div>
         <div><dt>Meals</dt><dd className="num">{s.meals}</dd></div>
         <div><dt>On the move</dt><dd className="num">{s.km.toFixed(1)} km<small>{fmtDuration(s.travelMin)}</small></dd></div>
-        <div className="ticket-total">
+        {/* the amount goes under its label and steps down a size when long, so no currency or sum is cut off */}
+        <div className={`ticket-total ${spend.length > 13 ? "is-long" : ""}`}>
           <dt>Planned spend</dt>
-          <dd className="num">{fmtMoney(it.budget.planned_total, it.budget.currency)}
+          <dd className="num">{spend}
             <small>of {fmtMoney(it.budget.total_budget, it.budget.currency)}, mostly estimates</small></dd>
         </div>
       </dl>
