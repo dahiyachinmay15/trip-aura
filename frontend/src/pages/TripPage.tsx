@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CalendarDays, FileDown, RotateCcw } from "lucide-react";
+import { CalendarDays, FileDown, Pencil, RotateCcw } from "lucide-react";
 import BudgetSummary from "../components/trip/BudgetSummary";
+import EditItinerarySheet from "../components/trip/EditItinerarySheet";
 import { type Command, usePageCommands } from "../components/layout/CommandMenu";
 import DayCard from "../components/trip/DayCard";
 import MapView from "../components/map/MapView";
@@ -21,7 +22,7 @@ import { useToast } from "../lib/toast";
 import { useScrollMotion } from "../lib/useScrollMotion";
 import { getSavedTrip, listSavedTrips, saveTrip } from "../lib/localTrips";
 import { api, ApiError } from "../services/api";
-import type { ItineraryItem } from "../types";
+import type { ItineraryItem, TripRequest } from "../types";
 import { dayColor, fmtDay } from "../utils";
 import NotFoundPage from "./NotFoundPage";
 
@@ -54,7 +55,9 @@ function TripView({ id }: { id: string | undefined }) {
   const [dayFilter, setDayFilter] = useState<number | "all">("all");
   const [selected, setSelected] = useState<ItineraryItem | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const editOptions = useSWR(editing ? "options" : null, api.options, { dedupeMs: 60_000 });
 
   usePageMeta(it ? `${it.request.num_days} days in ${it.request.destination_city}` : "Your itinerary",
     it ? `Day-by-day plan for ${it.request.destination_city}: sights, meals, transport and budget.` : undefined,
@@ -94,23 +97,41 @@ function TripView({ id }: { id: string | undefined }) {
     const item = it?.days.flatMap((d) => d.items).find((i) => i.id === mid);
     if (item) setSelected(item);
   }, [it]);
-  const regenerate = useCallback(async () => {
-    if (!key || !id || !it) return;
+  const regenerate = useCallback(async (request?: TripRequest, undoable = false): Promise<boolean> => {
+    if (!key || !id || !it) return false;
+    const previous = trip.data;
     setRegenerating(true);
     try {
-      const fresh = await api.previewTrip(it.request);
-      if (!getSavedTrip(id)) return;   // the trip was deleted while the new plan was being made: leave it deleted
+      const fresh = await api.previewTrip(request ?? it.request);
+      if (!getSavedTrip(id)) return false;   // the trip was deleted while the new plan was being made: leave it deleted
       const saved = saveTrip(fresh, id, trip.data?.created_at);
       mutate(key, saved);
       mutate("localTrips", listSavedTrips());
       setSelected(null);
-      toast.show({ tone: "success", message: "Itinerary regenerated with the latest data" });
+      const undo = () => {
+        if (!previous) return;
+        const restored = saveTrip(previous.itinerary, id, previous.created_at);
+        mutate(key, restored);
+        mutate("localTrips", listSavedTrips());
+        setSelected(null);
+      };
+      toast.show({
+        tone: "success",
+        message: undoable ? "Itinerary updated" : "Itinerary regenerated with the latest data",
+        ...(undoable && previous ? { actionLabel: "Undo", ms: 8_000, onAction: undo } : {}),
+      });
+      return true;
     } catch (e) {
       toast.show({ tone: "error", message: `Couldn't regenerate: ${(e as ApiError).message}` });
+      return false;
     } finally {
       setRegenerating(false);
     }
-  }, [key, id, it, trip.data?.created_at, toast]);
+  }, [key, id, it, trip.data, toast]);
+
+  const applyEdits = useCallback(async (request: TripRequest) => {
+    if (await regenerate(request, true)) setEditing(false);
+  }, [regenerate]);
 
   const showDay = useCallback((n: number | "all") => {
     const apply = () => setDayFilter(n);
@@ -139,9 +160,10 @@ function TripView({ id }: { id: string | undefined }) {
       id: `day-${d.day_number}`, label: `Show day ${d.day_number}`, hint: fmtDay(d.date), group: "This trip",
       icon: CalendarDays, run: () => showDay(d.day_number),
     })),
+    { id: "edit", label: "Edit this itinerary", group: "This trip", icon: Pencil, run: () => setEditing(true) },
     { id: "regen", label: "Regenerate this itinerary", group: "This trip", icon: RotateCcw, run: () => void regenerate() },
     { id: "pdf", label: "Download as PDF", group: "This trip", icon: FileDown, run: downloadPdf },
-  ], [it, showDay, regenerate, downloadPdf]);
+  ], [it, showDay, regenerate, downloadPdf, setEditing]);
   usePageCommands(commands);
 
   if (!key || (trip.data === null && !trip.loading) || (trip.error as ApiError | undefined)?.status === 404) return <NotFoundPage what="trip" />;
@@ -172,7 +194,12 @@ function TripView({ id }: { id: string | undefined }) {
 
   return (
     <div className="trip-layout" ref={root}>
-      <TripTicket it={it} regenerating={regenerating} onRegenerate={() => void regenerate()} onDownload={downloadPdf} />
+      <TripTicket it={it} regenerating={regenerating} onEdit={() => setEditing(true)}
+                  onRegenerate={() => void regenerate()} onDownload={downloadPdf} />
+      <EditItinerarySheet open={editing} onClose={() => { if (!regenerating) setEditing(false); }} itinerary={it}
+                          options={editOptions.data ?? null} loadingOptions={editOptions.loading}
+                          optionsError={!!editOptions.error} onRetryOptions={() => void editOptions.refresh()}
+                          busy={regenerating} onSave={(request) => void applyEdits(request)} />
       {printing && <TripPrint it={it} />}
 
       {it.disclaimers.filter((d) => d.startsWith("DEMO")).map((d) => <p key={d} className="notice notice-warn small">{d}</p>)}
