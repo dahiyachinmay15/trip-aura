@@ -189,10 +189,10 @@ code { font-size: .9em; background: var(--surface-2); border: 1px solid var(--li
 .banners:empty { display: none; }
 .main {
   flex: 1; width: 100%; max-width: 1240px; margin: 0 auto; outline: none;
-  padding: 24px calc(var(--gutter) + var(--safe-r)) 72px calc(var(--gutter) + var(--safe-l));
+  padding: 24px calc(var(--gutter) + var(--safe-r)) 48px calc(var(--gutter) + var(--safe-l));
 }
 
-.footer { position: relative; overflow: hidden; margin-top: 40px; background: var(--bg-2); border-top: 1px solid var(--line); }
+.footer { position: relative; overflow: hidden; margin-top: 16px; background: var(--bg-2); border-top: 1px solid var(--line); }
 .footer-inner {
   position: relative; max-width: 1240px; margin: 0 auto; display: grid; gap: 28px 32px;
   grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, .8fr)) minmax(0, 1.3fr);
@@ -240,7 +240,7 @@ button.mobile-link { display: flex; align-items: center; gap: 10px; width: 100%;
 .section-head-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; max-width: none; }
 
 /* ---------- home ---------- */
-.home { display: grid; gap: clamp(72px, 11vw, 136px); }
+.home { display: grid; gap: clamp(48px, 7vw, 88px); }
 .home > * { min-width: 0; }
 
 .hero {
@@ -350,7 +350,7 @@ button.mobile-link { display: flex; align-items: center; gap: 10px; width: 100%;
   background: radial-gradient(520px 260px at 100% 0%, rgba(255, 143, 102, .1), transparent 70%), var(--surface);
   border: 1px solid var(--line);
 }
-.describe { display: grid; gap: 14px; max-width: 820px; }
+.describe { display: grid; gap: 14px; }
 .describe .h1 { margin: 0; }
 .describe textarea { font-size: 1.12rem; min-height: 112px; background: var(--bg); }
 .describe-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
@@ -727,11 +727,18 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 
 .trip-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .sticky { position: sticky; top: 76px; }
-.side-col { min-width: 0; }
+/* the column spans the whole row (the grid aligns items to the start), so its sticky panel can follow the days; the
+   panel scrolls on its own when the map, details and budget are taller than the window */
+.side-col { min-width: 0; align-self: stretch; }
+.side-col > .sticky { max-height: calc(100dvh - 92px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  padding-bottom: 2px; border-radius: var(--r-l); }
+.unscheduled-list { columns: 2 320px; column-gap: 32px; margin: 0; }
+.unscheduled-list li { break-inside: avoid; margin-bottom: 4px; }
 @media (max-width: 960px) {
   .trip-grid { grid-template-columns: minmax(0, 1fr); }
   .side-col { order: -1; }
   .sticky { position: static; }
+  .side-col > .sticky { max-height: none; overflow: visible; }
 }
 
 .day { border-top: 4px solid var(--day); view-transition-name: none; }
@@ -779,7 +786,7 @@ input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-o
 .hours { border-collapse: collapse; } .hours td { padding: 2px 14px 2px 0; }
 .reviews li { margin-bottom: 4px; }
 
-.rest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 10px; }
+.rest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 10px; }   /* ten cards: two full rows of five on a wide page */
 .rest { border: 1px solid var(--line); border-radius: var(--r-m); padding: 12px; background: var(--surface-2); min-width: 0; }
 .dishes { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 8px 0 0; }
 .dish { font-size: .76rem; padding: 3px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); cursor: help; }

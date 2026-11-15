@@ -247,16 +247,6 @@ function TripView({ id }: { id: string | undefined }) {
                        currency={it.budget.currency} selectedId={selected?.id ?? null} onSelect={setSelected} />
             </div>
           ))}
-          {it.unscheduled.length > 0 && (
-            <section className="tile" data-reveal>
-              <h2 className="h3">Also worth considering</h2>
-              <ul className="small">{it.unscheduled.map((u) => <li key={u.place.id}><strong>{u.place.name}</strong>: {u.reason}</li>)}</ul>
-            </section>
-          )}
-          <div data-reveal><RestaurantList recs={it.food_recommendations} popular={it.popular_dishes} /></div>
-          {it.attributions.length > 0 && (
-            <p className="small muted attributions"><strong>Data sources:</strong> {it.attributions.join(" · ")}</p>
-          )}
         </div>
         <div className="side-col">
           <div className="sticky stack-m">
@@ -269,6 +259,20 @@ function TripView({ id }: { id: string | undefined }) {
           </div>
         </div>
       </div>
+
+      {/* full width below the days and the map, so neither column runs on alone with empty space beside it */}
+      {it.unscheduled.length > 0 && (
+        <section className="tile" data-reveal>
+          <h2 className="h3">Also worth considering</h2>
+          <ul className="small unscheduled-list">
+            {it.unscheduled.map((u) => <li key={u.place.id}><strong>{u.place.name}</strong>: {u.reason}</li>)}
+          </ul>
+        </section>
+      )}
+      <div data-reveal><RestaurantList recs={it.food_recommendations} popular={it.popular_dishes} /></div>
+      {it.attributions.length > 0 && (
+        <p className="small muted attributions"><strong>Data sources:</strong> {it.attributions.join(" · ")}</p>
+      )}
 
       {narrow && (
         <Sheet open={!!selected} onClose={() => setSelected(null)} title={selected?.place?.name ?? "Place"}>
