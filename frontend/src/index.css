@@ -212,10 +212,13 @@ code { font-size: .9em; background: var(--surface-2); border: 1px solid var(--li
 .footer-people span { color: var(--ink); font-weight: 560; flex-basis: 100%; }
 .footer-people a { font-size: .86rem; }
 /* the name, very large, fading into the page: the last thing on every screen */
+/* the wordmark stands behind the line above the legal text, like a sign behind a wall: the box is shorter than the
+   letters and clips them, so only their upper part shows and the line reads as the top of the wall */
 .footer-word {
-  grid-column: 1 / -1; margin: 12px 0 -0.16em; font-weight: 700; letter-spacing: -.065em; line-height: .8; white-space: nowrap;
+  grid-column: 1 / -1; margin: 18px 0 -28px; font-weight: 700; letter-spacing: -.065em; line-height: 1; white-space: nowrap;   /* -28px: the footer grid's row gap, so the letters meet the line */
   font-size: clamp(4.2rem, 19vw, 16.5rem); user-select: none;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 34%, var(--bg-2)), color-mix(in srgb, var(--primary) 6%, var(--bg-2)) 95%);
+  height: .84em; overflow: hidden;   /* the baseline sits at about .86em: only the bottom of the letters is cut */
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 36%, var(--bg-2)), color-mix(in srgb, var(--primary) 16%, var(--bg-2)));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .footer-legal { grid-column: 1 / -1; margin: 0; padding-top: 18px; border-top: 1px solid var(--line); }
