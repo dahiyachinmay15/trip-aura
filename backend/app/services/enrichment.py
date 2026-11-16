@@ -79,7 +79,9 @@ class GoogleEnricher:
     def enrich(self, place: Place, city: CityContext) -> bool:
         if place.external_rating is not None and place.external_rating.provider == DataSource.GOOGLE:
             return True
-        if self.stopped or _known_no_match(place.id):
+        # places the traveller added (must-see-0, must-see-1...) reuse ids across trips, so they are never remembered
+        remember = place.source != DataSource.USER
+        if self.stopped or (remember and _known_no_match(place.id)):
             return False
         local_name = place.name.split(" (")[0]
         ctx = CityContext(name=city.name, center=place.location, country_code=city.country_code, radius_km=0.3,
@@ -109,5 +111,6 @@ class GoogleEnricher:
                 with self._lock:
                     self.matched += 1
                 return True
-        _remember_no_match(place.id)
+        if remember:
+            _remember_no_match(place.id)
         return False

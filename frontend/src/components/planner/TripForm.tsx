@@ -35,6 +35,7 @@ const LAST = STEPS.length - 1;
 // Leaflet loads only when the traveller opens the map
 const MapPicker = lazy(() => import("./MapPicker"));
 const MAX_MUST_SEE = 10;   // the API's limit
+const STAY_COST_MESSAGE = "The stay cost must be lower than the total budget.";
 
 interface Props {
   options: ApiOptions;
@@ -141,6 +142,15 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
     setPicking(null);
   };
   const mustSee = req.must_see ?? [];
+  // the API refuses a stay cost that uses up the whole budget; say so on the budget step, not after the wait
+  const stayTooHigh = req.accommodation_cost_total > 0 && req.accommodation_cost_total >= req.budget;
+  useEffect(() => {
+    (document.getElementById("stay-cost") as HTMLInputElement | null)?.setCustomValidity(stayTooHigh ? STAY_COST_MESSAGE : "");
+  }, [stayTooHigh]);
+  // without a chosen city the search would cover the whole world
+  const fetchSights = useCallback(
+    (q: string, signal: AbortSignal) => (cityLoc ? fetchAddresses(q, signal) : Promise.resolve([] as AddressSuggestion[])),
+    [cityLoc, fetchAddresses]);
   /** Adds a must-see place, once: the same spot twice (within about 30 m) is the same place. */
   const addSight = (name: string, location: LatLng) => {
     setReq((r) => {
@@ -156,6 +166,8 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
       : place.label.split(",").map((x) => x.trim()).filter(worded).slice(0, 2).join(", "));
     addSight(name || `Pinned spot ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`, point);
     setPicking(null);
+    // the button that opened the map is gone once the list is full; keep focus in the step instead of losing it
+    if (mustSee.length + 1 >= MAX_MUST_SEE) window.setTimeout(() => panels.current[3]?.querySelector<HTMLElement>("h3")?.focus(), 0);
   };
   const removeSight = (m: MustSee) => set("must_see", mustSee.filter((x) => x !== m));
   const sightPins = useMemo(() => mustSee.map((m, i) => ({ at: m.location, label: m.name, text: String(i + 1) })), [mustSee]);
@@ -317,8 +329,10 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
           </fieldset>
           <label className="field">
             <span>Stay cost already inside this budget (optional)</span>
-            <NumberInput min={0} placeholder="0" emptyValue={0} value={req.accommodation_cost_total}
-                         onValue={(v) => set("accommodation_cost_total", v)} />
+            <NumberInput id="stay-cost" min={0} placeholder="0" emptyValue={0} value={req.accommodation_cost_total}
+                         onValue={(v) => set("accommodation_cost_total", v)} aria-invalid={stayTooHigh || undefined}
+                         aria-describedby={stayTooHigh ? "stay-cost-error" : undefined} />
+            {stayTooHigh && <small id="stay-cost-error" className="field-error">{STAY_COST_MESSAGE}</small>}
           </label>
           <label className="check">
             <input type="checkbox" checked={req.fit_to_budget} onChange={(e) => set("fit_to_budget", e.target.checked)} />
@@ -356,7 +370,7 @@ export default function TripForm({ options, status, submitting, onSubmit, prefil
                   placeholder={cityLoc ? "A sight, museum, viewpoint or any place" : "Choose the city first"}
                   onChange={setSightQuery}
                   onSelect={(a) => { addSight(a.name || a.label, { lat: a.lat, lng: a.lng }); setSightQuery(""); }}
-                  fetchItems={fetchAddresses} itemKey={(a) => `${a.lat},${a.lng},${a.label}`}
+                  fetchItems={fetchSights} itemKey={(a) => `${a.lat},${a.lng},${a.label}`}
                   renderItem={(a) => <span className="ac-item">{a.label}{a.kind && <span className="muted small"> · {a.kind.replace(/_/g, " ")}</span>}</span>}
                   footer="Photon / OpenStreetMap"
                 />

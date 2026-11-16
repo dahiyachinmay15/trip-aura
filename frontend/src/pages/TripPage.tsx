@@ -20,7 +20,7 @@ import { prefersReducedMotion } from "../lib/platform";
 import { mutate, useSWR } from "../lib/swr";
 import { useToast } from "../lib/toast";
 import { useScrollMotion } from "../lib/useScrollMotion";
-import { getSavedTrip, listSavedTrips, saveTrip } from "../lib/localTrips";
+import { getSavedTrip, listSavedTrips, saveTrip, droppedOnLastSave } from "../lib/localTrips";
 import { api, ApiError } from "../services/api";
 import type { ItineraryItem, TripRequest } from "../types";
 import { dayColor, fmtDay } from "../utils";
@@ -55,6 +55,7 @@ function TripView({ id }: { id: string | undefined }) {
   const [dayFilter, setDayFilter] = useState<number | "all">("all");
   const [selected, setSelected] = useState<ItineraryItem | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const busy = useRef(false);
   const [editing, setEditing] = useState(false);
   const [printing, setPrinting] = useState(false);
   const editOptions = useSWR(editing ? "options" : null, api.options, { dedupeMs: 60_000 });
@@ -62,9 +63,11 @@ function TripView({ id }: { id: string | undefined }) {
   usePageMeta(it ? `${it.request.num_days} days in ${it.request.destination_city}` : "Your itinerary",
     it ? `Day-by-day plan for ${it.request.destination_city}: sights, meals, transport and budget.` : undefined,
     { noindex: true });
-  useScrollMotion(root, [id, dayFilter]);
+  const dayShown = dayFilter !== "all" && it && !it.days.some((d) => d.day_number === dayFilter) ? "all" : dayFilter;
+  // !!it: the first render is the skeleton, which has no root to animate; run again once the trip is there
+  useScrollMotion(root, [id, dayShown, !!it]);
 
-  const days = useMemo(() => (it ? it.days.filter((d) => dayFilter === "all" || d.day_number === dayFilter) : []), [it, dayFilter]);
+  const days = useMemo(() => (it ? it.days.filter((d) => dayShown === "all" || d.day_number === dayShown) : []), [it, dayShown]);
 
   const { markers, polylines } = useMemo(() => {
     const markers: MapMarker[] = [];
@@ -98,8 +101,9 @@ function TripView({ id }: { id: string | undefined }) {
     if (item) setSelected(item);
   }, [it]);
   const regenerate = useCallback(async (request?: TripRequest, undoable = false): Promise<boolean> => {
-    if (!key || !id || !it) return false;
+    if (!key || !id || !it || busy.current) return false;
     const previous = trip.data;
+    busy.current = true;
     setRegenerating(true);
     try {
       const fresh = await api.previewTrip(request ?? it.request);
@@ -107,6 +111,8 @@ function TripView({ id }: { id: string | undefined }) {
       const saved = saveTrip(fresh, id, trip.data?.created_at);
       mutate(key, saved);
       mutate("localTrips", listSavedTrips());
+      const gone = droppedOnLastSave();
+      if (gone) toast.show({ tone: "info", ms: 8_000, message: `To make room, the ${gone === 1 ? "oldest saved trip was" : `${gone} oldest saved trips were`} removed from this browser.` });
       setSelected(null);
       const undo = () => {
         if (!previous) return;
@@ -125,6 +131,7 @@ function TripView({ id }: { id: string | undefined }) {
       toast.show({ tone: "error", message: `Couldn't regenerate: ${(e as ApiError).message}` });
       return false;
     } finally {
+      busy.current = false;
       setRegenerating(false);
     }
   }, [key, id, it, trip.data, toast]);
@@ -225,11 +232,11 @@ function TripView({ id }: { id: string | undefined }) {
 
       <div className="day-nav">
       <div className="day-tabs" role="tablist" aria-label="Days">
-        <button role="tab" aria-selected={dayFilter === "all"} className={`seg ${dayFilter === "all" ? "is-on" : ""}`}
+        <button role="tab" aria-selected={dayShown === "all"} className={`seg ${dayShown === "all" ? "is-on" : ""}`}
                 onClick={() => showDay("all")}>All days</button>
         {it.days.map((d) => (
-          <button key={d.day_number} role="tab" aria-selected={dayFilter === d.day_number}
-                  className={`seg ${dayFilter === d.day_number ? "is-on" : ""}`}
+          <button key={d.day_number} role="tab" aria-selected={dayShown === d.day_number}
+                  className={`seg ${dayShown === d.day_number ? "is-on" : ""}`}
                   style={{ "--day": dayColor(d.day_number) } as React.CSSProperties}
                   onClick={() => showDay(d.day_number)}>
             <span className="day-dot" aria-hidden />Day {d.day_number}

@@ -86,8 +86,8 @@ function Palette({ pageCommands, onClose }: { pageCommands: Command[]; onClose: 
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, shown.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
     else if (e.key === "Enter") { e.preventDefault(); run(shown[active]); }
-    else if (e.key === "Escape") { e.preventDefault(); onClose(); }
-    else trapTab(e, input.current?.closest(".cmd") ?? null);
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); onClose(); }
+    else if (e.key === "Tab") { e.nativeEvent.stopImmediatePropagation(); trapTab(e, input.current?.closest(".cmd") ?? null); }
   };
 
   let lastGroup = "";

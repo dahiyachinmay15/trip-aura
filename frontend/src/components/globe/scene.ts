@@ -300,6 +300,8 @@ export function createGlobeScene(
     start();
   }
 
+  let pulseFrame = 0;
+
   function step(dt: number, now: number) {
     const r = globe.rotation;
     if (!dragging) {
@@ -323,7 +325,8 @@ export function createGlobeScene(
       }
       if (!tweening && Math.abs(r.y) > Math.PI) r.y -= Math.sign(r.y) * Math.PI * 2; // keep the angle small
     }
-    if (marker.visible && !reduced) {
+    // the pulse is slow and soft: when it is the only thing moving, every other frame is enough
+    if (marker.visible && !reduced && (pulseFrame = (pulseFrame + 1) % 2) === 0) {
       const phase = (timer.getElapsed() % 2.2) / 2.2;
       pulse.scale.setScalar(1 + 1.8 * (1 - (1 - phase) * (1 - phase)));
       pulseMaterial.opacity = 0.6 * (1 - phase);

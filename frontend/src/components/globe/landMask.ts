@@ -50,19 +50,32 @@ function landPolygons(topology: Topology): number[][][][] {
 /** Every country edge once (shared borders and coastlines alike), as line segments on a sphere of radius r. */
 function borderSegments(topology: Topology, r: number): Float32Array {
   const lines = mesh(topology, topology.objects.countries as GeometryCollection).coordinates;
-  const out: number[] = [];
+  let segments = 0;
+  for (const line of lines) segments += Math.max(0, line.length - 1);
+  const out = new Float32Array(segments * 6);
+  let k = 0;
+  const put = (lat: number, lng: number) => {
+    const [x, y, z] = latLngToVec(lat, lng, r);
+    out[k++] = x; out[k++] = y; out[k++] = z;
+  };
   for (const line of lines) {
     for (let i = 1; i < line.length; i++) {
       const [lng0, lat0] = line[i - 1];
       const [lng1, lat1] = line[i];
       if (Math.abs(lng1 - lng0) > 180) continue;   // a seam along the date line, not a real edge
-      out.push(...latLngToVec(lat0, lng0, r), ...latLngToVec(lat1, lng1, r));
+      put(lat0, lng0);
+      put(lat1, lng1);
     }
   }
-  return new Float32Array(out);
+  return out.subarray(0, k);
 }
 
-function build(topology: Topology): LandData {
+/** Lets the browser paint and handle input between the steps below, so the page never freezes while they run. */
+const breathe = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+async function build(topology: Topology): Promise<LandData> {
+  const polygons = landPolygons(topology);
+  await breathe();
   const canvas = document.createElement("canvas");
   canvas.width = MASK_WIDTH;
   canvas.height = MASK_HEIGHT;
@@ -72,13 +85,14 @@ function build(topology: Topology): LandData {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, MASK_WIDTH, MASK_HEIGHT);
   ctx.beginPath();
-  for (const ring of landPixelRings(landPolygons(topology), MASK_WIDTH, MASK_HEIGHT)) {
+  for (const ring of landPixelRings(polygons, MASK_WIDTH, MASK_HEIGHT)) {
     ctx.moveTo(ring[0][0], ring[0][1]);
     for (let i = 1; i < ring.length; i++) ctx.lineTo(ring[i][0], ring[i][1]);
     ctx.closePath();
   }
   ctx.fillStyle = "#fff";
   ctx.fill("evenodd"); // even-odd so lake rings cut holes whatever their winding
+  await breathe();
 
   const pixels = ctx.getImageData(0, 0, MASK_WIDTH, MASK_HEIGHT).data;
   const kept: number[] = [];
@@ -90,6 +104,7 @@ function build(topology: Topology): LandData {
     const iy = Math.min(MASK_HEIGHT - 1, Math.floor(py));
     if (pixels[(iy * MASK_WIDTH + ix) * 4] > 160) kept.push(x, y, z);
   }
+  await breathe();
   return { canvas, dots: new Float32Array(kept), borders: borderSegments(topology, 1.0016) };
 }
 

@@ -7,13 +7,21 @@ export interface SavedTrip extends TripSummary {
   itinerary: Itinerary;
 }
 
+let lastRaw: string | null = null;
+let lastList: SavedTrip[] = [];
+
 export function listSavedTrips(): SavedTrip[] {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+    const raw = localStorage.getItem(STORAGE_KEY) ?? "[]";
+    if (raw === lastRaw) return lastList;   // unchanged storage: same objects (never mutated by callers)
+    const value: unknown = JSON.parse(raw);
     if (!Array.isArray(value)) return [];
-    return value.filter((trip): trip is SavedTrip =>
+    const list = value.filter((trip): trip is SavedTrip =>
       !!trip && typeof trip.id === "string" && typeof trip.title === "string" &&
       typeof trip.created_at === "string" && !!trip.itinerary?.request);
+    lastRaw = raw;
+    lastList = list;
+    return list;
   } catch {
     return [];
   }
@@ -23,11 +31,19 @@ export function listSavedTrips(): SavedTrip[] {
  * Trips are stored newest first. If the browser's storage is full, the oldest trips are dropped one at a time
  * until the list fits, so a plan that took a while to build is not lost for lack of room.
  */
+let dropped = 0;
+
+/** How many older trips the last save had to remove (the 25-trip limit or a full storage); 0 almost always. */
+export function droppedOnLastSave(): number {
+  return dropped;
+}
+
 function writeSavedTrips(trips: SavedTrip[]): void {
   let keep = trips.slice(0, MAX_TRIPS);
   for (;;) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(keep));
+      dropped = trips.length - keep.length;
       return;
     } catch {
       if (keep.length <= 1) throw new Error("This browser couldn't save the trip. Check available storage and try again.");

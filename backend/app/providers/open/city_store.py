@@ -184,6 +184,7 @@ class CityDataService:
         self._refreshing: set[str] = set()
         self._locks: dict[str, threading.Lock] = {}
         self._guard = threading.Lock()
+        self._memory_lock = threading.Lock()   # _remember runs from requests and background threads at once
 
     def _sessions(self):
         if self._session_factory is None:
@@ -245,10 +246,11 @@ class CityDataService:
 
     def _remember(self, data: CityData) -> None:
         """Keeps the most recently used cities in memory (each holds thousands of places)."""
-        self._memory.pop(data.key, None)
-        self._memory[data.key] = data
-        while len(self._memory) > MAX_CITIES_IN_MEMORY:
-            self._memory.pop(next(iter(self._memory)))
+        with self._memory_lock:
+            self._memory.pop(data.key, None)
+            self._memory[data.key] = data
+            while len(self._memory) > MAX_CITIES_IN_MEMORY:
+                self._memory.pop(next(iter(self._memory)))
 
     def _save(self, data: CityData) -> None:
         from app.db.models import CityDataset

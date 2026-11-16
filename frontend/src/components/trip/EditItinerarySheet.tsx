@@ -52,7 +52,7 @@ export default function EditItinerarySheet({
   const validBudget = draft.budget > draft.accommodation_cost_total;
 
   return (
-    <Sheet open={open} onClose={() => { if (!busy) onClose(); }} title="Edit your itinerary">
+    <Sheet open={open} onClose={onClose} title="Edit your itinerary">
       {busy ? (
         <GeneratingPanel city={draft.destination_city} firstVisitHint={false} />
       ) : loadingOptions ? (

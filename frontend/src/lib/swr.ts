@@ -35,6 +35,7 @@ export function invalidate(key: string) {
 export function clearCache() { cache.clear(); listeners.forEach((_, k) => emit(k)); }
 
 function sameData(a: unknown, b: unknown): boolean {
+  if (a === b) return true;   // the same object: no need to serialise it twice
   try {
     return JSON.stringify(a) === JSON.stringify(b);
   } catch {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { MapViewProps } from "./types";
+import type { MapMarker, MapViewProps } from "./types";
 
 let loader: Promise<void> | null = null;
 
@@ -19,6 +19,11 @@ function loadGoogleMaps(key: string): Promise<void> {
   return loader;
 }
 
+function markerIcon(mk: MapMarker, big: boolean): google.maps.Symbol {
+  return { path: google.maps.SymbolPath.CIRCLE, scale: big ? 14 : 11, fillColor: mk.color, fillOpacity: 1,
+           strokeColor: "#fff", strokeWeight: 2 };
+}
+
 export default function GoogleMap({ markers, polylines, current, selectedId, onSelect, apiKey }:
   MapViewProps & { apiKey: string }) {
   const el = useRef<HTMLDivElement>(null);
@@ -26,6 +31,11 @@ export default function GoogleMap({ markers, polylines, current, selectedId, onS
   const overlays = useRef<{ setMap: (m: google.maps.Map | null) => void }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const traffic = useRef<google.maps.TrafficLayer | null>(null);
+  const markerById = useRef(new Map<string, { marker: google.maps.Marker; spec: MapMarker }>());
+  const shownSelection = useRef<string | null>(null);
+  const selectRef = useRef(onSelect);
+  selectRef.current = onSelect;
 
   useEffect(() => {
     loadGoogleMaps(apiKey)
@@ -34,18 +44,29 @@ export default function GoogleMap({ markers, polylines, current, selectedId, onS
           map.current = new google.maps.Map(el.current, {
             center: { lat: 20, lng: 0 }, zoom: 13, mapTypeControl: false,
           });
-          new google.maps.TrafficLayer().setMap(map.current);
+        }
+        if (map.current) {
+          traffic.current ??= new google.maps.TrafficLayer();
+          traffic.current.setMap(map.current);
         }
         setReady(true);
       })
       .catch((e: Error) => setError(e.message));
+    return () => {
+      traffic.current?.setMap(null);
+      overlays.current.forEach((o) => o.setMap(null));
+      overlays.current = [];
+      markerById.current.clear();
+    };
   }, [apiKey]);
 
+  // the plan's markers and lines: rebuilt only when the plan (or the day shown) changes, then the view fits them
   useEffect(() => {
     const m = map.current;
     if (!ready || !m) return;
     overlays.current.forEach((o) => o.setMap(null));
     overlays.current = [];
+    markerById.current.clear();
     const bounds = new google.maps.LatLngBounds();
     for (const p of polylines) {
       const line = new google.maps.Polyline({
@@ -55,15 +76,14 @@ export default function GoogleMap({ markers, polylines, current, selectedId, onS
       overlays.current.push(line);
     }
     for (const mk of markers) {
-      const big = mk.kind === "home" || mk.id === selectedId;
       const marker = new google.maps.Marker({
         position: mk.position, map: m, title: mk.title,
         label: { text: mk.label, color: "#ffffff", fontSize: "11px", fontWeight: "700" },
-        icon: { path: google.maps.SymbolPath.CIRCLE, scale: big ? 14 : 11, fillColor: mk.color, fillOpacity: 1,
-                strokeColor: "#fff", strokeWeight: 2 },
+        icon: markerIcon(mk, mk.kind === "home"),
       });
-      marker.addListener("click", () => onSelect?.(mk.id));
+      marker.addListener("click", () => selectRef.current?.(mk.id));
       overlays.current.push(marker);
+      markerById.current.set(mk.id, { marker, spec: mk });
       bounds.extend(mk.position);
     }
     if (current) {
@@ -77,14 +97,23 @@ export default function GoogleMap({ markers, polylines, current, selectedId, onS
           strokeColor: "#0ea5e9", strokeWeight: 1, fillColor: "#0ea5e9", fillOpacity: 0.1 }));
       }
     }
-    const sel = markers.find((x) => x.id === selectedId);
-    if (sel) {
-      m.panTo(sel.position);
-      m.setZoom(Math.max(m.getZoom() ?? 13, 15));
-    } else if (!bounds.isEmpty()) {
-      m.fitBounds(bounds, 30);
-    }
-  }, [ready, markers, polylines, current, selectedId, onSelect]);
+    shownSelection.current = null;
+    if (!bounds.isEmpty()) m.fitBounds(bounds, 30);
+  }, [ready, markers, polylines, current]);
+
+  // a selection enlarges its marker (and shrinks the previous one) and pans to it; nothing is rebuilt
+  useEffect(() => {
+    const m = map.current;
+    if (!ready || !m) return;
+    const prev = shownSelection.current ? markerById.current.get(shownSelection.current) : undefined;
+    if (prev) prev.marker.setIcon(markerIcon(prev.spec, prev.spec.kind === "home"));
+    const sel = selectedId ? markerById.current.get(selectedId) : undefined;
+    shownSelection.current = sel ? selectedId ?? null : null;
+    if (!sel) return;
+    sel.marker.setIcon(markerIcon(sel.spec, true));
+    m.panTo(sel.spec.position);
+    m.setZoom(Math.max(m.getZoom() ?? 13, 15));
+  }, [ready, selectedId, markers]);
 
   if (error) return <div className="map map-error">{error}. Check VITE_GOOGLE_MAPS_API_KEY.</div>;
   return <div ref={el} className="map" />;

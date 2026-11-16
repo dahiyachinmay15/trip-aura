@@ -12,7 +12,7 @@ import Autocomplete from "../components/ui/Autocomplete";
 import RetryNotice from "../components/ui/RetryNotice";
 import { SkeletonLines } from "../components/ui/Skeleton";
 import Stepper from "../components/ui/Stepper";
-import { listSavedTrips, saveTrip } from "../lib/localTrips";
+import { listSavedTrips, saveTrip, droppedOnLastSave } from "../lib/localTrips";
 import { usePageMeta } from "../lib/meta";
 import { mutate, useSWR } from "../lib/swr";
 import { useToast } from "../lib/toast";
@@ -121,6 +121,8 @@ export default function PlannerPage({ status }: { status: ApiStatus | null }) {
       const it = await api.previewTrip(req);
       const saved = saveTrip(it);
       mutate("localTrips", listSavedTrips());
+      const gone = droppedOnLastSave();
+      if (gone) toast.show({ tone: "info", ms: 8_000, message: `To make room, the ${gone === 1 ? "oldest saved trip was" : `${gone} oldest saved trips were`} removed from this browser.` });
       const message = `Your ${it.days.length}-day plan for ${req.destination_city.split(",")[0]} is ready`;
       if (window.location.pathname === "/") {
         toast.show({ tone: "success", message });

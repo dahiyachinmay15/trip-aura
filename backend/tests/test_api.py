@@ -214,3 +214,17 @@ def test_jaipur_demo_still_plans_autos(client, base_request):
     data = client.post("/api/trips/preview", json=base_request).json()
     modes = {i["travel"]["chosen"]["mode"] for d in data["days"] for i in d["items"] if i.get("travel")}
     assert "auto" in modes and data["request"]["transport_modes"] == base_request["transport_modes"]
+
+
+def test_unexpected_photon_answers_mean_nothing_found_not_a_crash(client, monkeypatch):
+    from app.routers import geo
+
+    bodies = [[], {"features": None}, {"features": [None, "x"]},
+              {"features": [{"properties": {"name": 5, "city": ["Lisbon"]}, "geometry": {"coordinates": [-9.1, 38.7]}}]},
+              {"features": [{"properties": "x", "geometry": {"coordinates": [True, 38.7]}}]}]
+    for body in bodies:
+        resp = httpx.Response(200, json=body, request=httpx.Request("GET", "https://photon.test"))
+        monkeypatch.setattr(geo.httpx, "get", lambda *a, _r=resp, **k: _r)
+        r = client.get("/api/geo/reverse", params={"lat": 38.7, "lng": -9.1})
+        assert r.status_code == 200 and r.json()["result"] is None, (body, r.text)
+        assert client.get("/api/geo/addresses", params={"q": "rossio"}).status_code == 200, body

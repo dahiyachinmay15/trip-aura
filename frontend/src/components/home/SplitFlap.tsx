@@ -19,9 +19,22 @@ export default function SplitFlap({ words, cells, onPick, holdMs = 3200 }: Props
   const [index, setIndex] = useState(0);
   const [chars, setChars] = useState(() => pad(words[0], cells));
   const paused = useRef(false);
+  const onScreen = useRef(true);
+  const self = useRef<HTMLButtonElement>(null);
+
+  // only flips while it can be seen: off screen it would re-render twenty times a word for nobody
+  useEffect(() => {
+    const el = self.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => { onScreen.current = e.isIntersecting; });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
-    const t = window.setInterval(() => { if (!paused.current && !document.hidden) setIndex((i) => (i + 1) % words.length); }, holdMs);
+    const t = window.setInterval(() => {
+      if (!paused.current && onScreen.current && !document.hidden) setIndex((i) => (i + 1) % words.length);
+    }, holdMs);
     return () => window.clearInterval(t);
   }, [words.length, holdMs]);
 
@@ -40,7 +53,7 @@ export default function SplitFlap({ words, cells, onPick, holdMs = 3200 }: Props
 
   const word = words[index % words.length];   // the list can shrink (demo mode) while the index is ahead
   return (
-    <button type="button" className="flap" onClick={() => onPick(word)} aria-label={`Plan a trip to ${word}`}
+    <button ref={self} type="button" className="flap" onClick={() => onPick(word)} aria-label={`Plan a trip to ${word}`}
             onPointerEnter={() => { paused.current = true; }} onPointerLeave={() => { paused.current = false; }}
             onFocus={() => { paused.current = true; }} onBlur={() => { paused.current = false; }}>
       {chars.map((ch, i) => (

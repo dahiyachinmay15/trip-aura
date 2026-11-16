@@ -20,7 +20,8 @@ const pin = (text: string, cls: string) =>
   L.divIcon({ className: cls, html: `<span>${text.replace(/[^\w]/g, "").slice(0, 2)}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] });
 
 function ClickToPin({ onPoint }: { onPoint: (p: LatLng) => void }) {
-  useMapEvents({ click: (e) => onPoint({ lat: e.latlng.lat, lng: e.latlng.lng }) });
+  // wrap(): a map panned past the date line reports longitudes like 181.2, which the API rightly refuses
+  useMapEvents({ click: (e) => { const p = e.latlng.wrap(); onPoint({ lat: p.lat, lng: p.lng }); } });
   return null;
 }
 
@@ -49,7 +50,7 @@ export default function MapPicker({ center, initial, hint, confirmLabel, pinText
 
   const handlers = useMemo(() => ({
     dragend: (e: L.LeafletEvent) => {
-      const p = (e.target as L.Marker).getLatLng();
+      const p = (e.target as L.Marker).getLatLng().wrap();
       setPoint({ lat: p.lat, lng: p.lng });
     },
   }), []);

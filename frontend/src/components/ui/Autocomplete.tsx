@@ -75,7 +75,7 @@ export default function Autocomplete<T>({ value, onChange, onSelect, fetchItems,
         ref={field} id={inputId} aria-label={ariaLabel} value={value} maxLength={120} placeholder={placeholder} required={required} autoComplete="off"
         role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
         aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
-        onChange={(e) => { typed.current = true; onChange(e.target.value); }}
+        onChange={(e) => { typed.current = true; setItems([]); setActive(-1); onChange(e.target.value); }}
         onKeyDown={onKeyDown}
         onFocus={() => items.length && setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 150)}

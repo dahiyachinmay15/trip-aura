@@ -64,7 +64,7 @@ export default function App() {
     </div>
   );
 
-  const page = (el: React.ReactNode) => <Suspense fallback={<div className="tile"><SkeletonLines lines={5} /></div>}>{el}</Suspense>;
+  const page = (el: React.ReactNode) => <Suspense fallback={<div className="tile route-loading"><SkeletonLines lines={5} /></div>}>{el}</Suspense>;
 
   return (
     <ToastProvider>

@@ -111,22 +111,31 @@ def rank_attractions(places: list[Place], ctx: ScoringContext, constraints: Plan
         ranked.append(Candidate(p, s))
     # must-sees first, so a near-duplicate of one never replaces it
     ranked.sort(key=lambda c: (c.place.id not in ctx.must_see, -c.score.score, c.place.name))
-    return _drop_near_duplicates(ranked), rejected
+    return _drop_near_duplicates(ranked, keep=ctx.must_see), rejected
 
 
 def _lower_first(text: str) -> str:
     return text[:1].lower() + text[1:]
 
 
+def _missed_reason(reason: str) -> str:
+    reason = _lower_first(reason)
+    return reason if reason.startswith("did not fit") else "did not fit: " + reason
+
+
 def _stems(name: str) -> set[str]:
     return {w[:5] for w in re.findall(r"[a-z]+", name.lower()) if len(w) >= 5}
 
 
-def _drop_near_duplicates(ranked: list[Candidate], max_m: float = 150) -> list[Candidate]:
+def _drop_near_duplicates(ranked: list[Candidate], max_m: float = 150, keep: set[str] | frozenset[str] = frozenset()
+                          ) -> list[Candidate]:
     """Open data can list one sight twice under different spellings ("Lahori Gate" / "Lahore Gate").
     Keep the better-ranked one when two candidates are this close and share a name stem."""
     kept: list[Candidate] = []
     for c in ranked:
+        if c.place.id in keep:   # asked for by the traveller: never folded into another place
+            kept.append(c)
+            continue
         stems = _stems(c.place.name)
         if any(haversine_km(c.loc.lat, c.loc.lng, k.loc.lat, k.loc.lng) * 1000 <= max_m and stems & _stems(k.place.name)
                for k in kept):
@@ -411,7 +420,7 @@ class ItineraryEngine:
         if state["t"] > self.pace.day_end + 30:
             warnings.append(f"Day ends late ({min_to_hm(int(state['t']))}); consider removing an activity.")
         if not any(i.type == ItemType.ACTIVITY for i in items):
-            warnings.append("No attractions could be scheduled for this day.")
+            warnings.append(f"No attractions could be scheduled for day {day_number}.")
 
         db = budget_engine.day_budget(day_number, items)
         return DayPlan(day_number=day_number, date=date, weekday=WEEKDAYS[weekday], items=items, budget=db,
@@ -449,7 +458,7 @@ class ItineraryEngine:
     # ------------------------------------------------------------------- public
     def build(self, attractions: list[Place]) -> PlanResult:
         ranked, rejected = rank_attractions(attractions, self.ctx, self.c)
-        self._parks = [c.place for c in ranked if c.place.kind == PlaceKind.PARK]
+        self._parks = [c.place for c in ranked if c.place.kind == PlaceKind.PARK and c.place.id not in self.ctx.must_see]
         self._used_parks: set[str] = set()
         used: set[str] = set()
         self._visited = used
@@ -466,7 +475,11 @@ class ItineraryEngine:
             seq = self._plan_day(date.weekday(), ranked, used, want_park, quota)
             for c in seq:
                 self._used_parks.add(c.place.id)
+            before = len(dropped)
             days.append(self._materialise(i + 1, date, seq, used_food, dropped))
+            for u in dropped[before:]:
+                if u.place.id in must:
+                    used.discard(u.place.id)
 
         scheduled = {it.place.id for d in days for it in d.items if it.place}
         spare = [c for c in ranked if c.place.id not in scheduled]
@@ -476,7 +489,7 @@ class ItineraryEngine:
         # a must-see that is not in the plan is always reported, first, with the reason
         why = {u.place.id: u.reason for u in dropped}
         no_slot = "no free time on a day when it is open"
-        missed = [(c.place, "did not fit: " + _lower_first(why.get(c.place.id, no_slot)))
+        missed = [(c.place, _missed_reason(why.get(c.place.id, no_slot)))
                   for c in ranked if c.place.id in must and c.place.id not in scheduled]
         missed += [(u.place, "is " + _lower_first(u.reason)) for u in rejected if u.place.id in must]
         for place, reason in missed:

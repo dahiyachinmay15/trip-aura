@@ -76,3 +76,73 @@ def test_matching_prefers_a_shared_name_then_the_place_at_the_pin():
     assert match_must_see(MustSeeInput(name="12 Rua X", location=LatLng(lat=38.69172, lng=-9.21612)), pool) is kiosk
     # nothing known near the pin
     assert match_must_see(MustSeeInput(name="Torre de Belem", location=LatLng(lat=38.70, lng=-9.20)), pool) is None
+
+
+def test_a_must_see_dropped_on_one_day_is_planned_on_a_later_one(client, base_request, monkeypatch):
+    # real travel times can push a must-see out of the day it was planned for; the next day must offer it again
+    from app.engines import itinerary as eng
+    from app.schemas.itinerary import UnscheduledPlace
+
+    original = eng.ItineraryEngine._materialise
+
+    def slow_first_day(self, day_number, date, seq, used_food, dropped):
+        if day_number == 1:
+            gone = [c for c in seq if c.place.id in self.ctx.must_see]
+            dropped += [UnscheduledPlace(place=c.place, reason="Did not fit after real travel times / opening hours")
+                        for c in gone]
+            seq = [c for c in seq if c not in gone]
+        return original(self, day_number, date, seq, used_food, dropped)
+
+    monkeypatch.setattr(eng.ItineraryEngine, "_materialise", slow_first_day)
+    must = [{"name": "Patrika Gate", "location": {"lat": 26.8418, "lng": 75.8025}}]
+    data = client.post("/api/trips/preview", json={**base_request, "must_see": must}).json()
+    day2 = [i["place"]["name"] for i in data["days"][1]["items"] if i["type"] == "activity"]
+    assert "Patrika Gate" in day2
+    assert all(u["place"]["name"] != "Patrika Gate" for u in data["unscheduled"])
+    assert not any("Patrika Gate" in w for w in data["warnings"])
+
+
+def test_two_close_must_sees_with_a_shared_word_are_both_kept(client, base_request):
+    must = [{"name": "Cousins rooftop cafe", "location": {"lat": 26.8800, "lng": 75.7800}},
+            {"name": "Cousins house", "location": {"lat": 26.8809, "lng": 75.7800}}]
+    data = client.post("/api/trips/preview", json={**base_request, "must_see": must}).json()
+    planned = {i["place"]["name"] for i in _activities(data)}
+    reported = {u["place"]["name"] for u in data["unscheduled"] if u["reason"].startswith("On your must-see list")}
+    # each one is either in the plan or reported; neither is silently folded into the other
+    assert {"Cousins rooftop cafe", "Cousins house"} <= planned | reported
+
+
+def test_missed_reason_does_not_repeat_itself():
+    from app.engines.itinerary import _missed_reason
+
+    assert _missed_reason("Did not fit after real travel times / opening hours") == \
+        "did not fit after real travel times / opening hours"
+    assert _missed_reason("Would have pushed lunch past 14:30") == "did not fit: would have pushed lunch past 14:30"
+
+
+def test_empty_days_are_named_not_repeated(client, base_request):
+    data = client.post("/api/trips/preview", json={**base_request, "num_days": 14}).json()
+    assert len(data["warnings"]) == len(set(data["warnings"]))
+
+
+def test_places_added_by_the_traveller_are_not_remembered_as_no_match():
+    # their ids (must-see-0, must-see-1...) repeat across trips, so "no Google match" for one says nothing about the next
+    from app.providers.base import CityContext
+    from app.services import enrichment
+    from app.services.enrichment import GoogleEnricher
+
+    searched = []
+
+    class NoMatch:
+        def search(self, city, query):
+            searched.append(query.text)
+            return []
+
+    city = CityContext(name="Paris", center=LatLng(lat=48.86, lng=2.35), country_code="FR", radius_km=8,
+                       has_metro=None, source=DataSource.OSM)
+    cafe = Place(id="must-see-0", name="Cousin cafe", kind=PlaceKind.ATTRACTION, location=LatLng(lat=48.86, lng=2.34),
+                 source=DataSource.USER)
+    louvre = cafe.model_copy(update={"name": "Louvre"})
+    GoogleEnricher(NoMatch()).enrich(cafe, city)
+    GoogleEnricher(NoMatch()).enrich(louvre, city)
+    assert len(searched) == 2 and "must-see-0" not in enrichment._NO_MATCH

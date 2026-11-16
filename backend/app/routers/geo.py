@@ -6,6 +6,7 @@ Nominatim's usage policy does not allow autocomplete, so addresses use Photon
 """
 from __future__ import annotations
 
+import math
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
@@ -36,16 +37,30 @@ FAR_KM = 150          # dropped when there are matches nearer than NEAR_KM
 def _photon(url: str, ua: str, params: dict) -> list[dict]:
     r = httpx.get(url, params=params, timeout=8, headers={"User-Agent": ua})
     r.raise_for_status()
-    return r.json().get("features", [])
+    body = r.json()
+    features = body.get("features") if isinstance(body, dict) else None
+    # anything but a list of objects is treated as "nothing found", never as a crash
+    return [f for f in features if isinstance(f, dict)] if isinstance(features, list) else []
+
+
+def _text(v: object) -> str | None:
+    return v.strip() or None if isinstance(v, str) else None
 
 
 def _suggestion(feat: dict) -> dict | None:
-    p = feat.get("properties") or {}
-    coords = (feat.get("geometry") or {}).get("coordinates") or []
+    p = feat.get("properties")
+    p = p if isinstance(p, dict) else {}
+    geom = feat.get("geometry")
+    coords = geom.get("coordinates") if isinstance(geom, dict) else None
     # skip features without a usable point (null geometry, short or non-numeric coordinates)
-    if len(coords) < 2 or not all(isinstance(c, (int, float)) for c in coords[:2]):
+    if not isinstance(coords, list) or len(coords) < 2 or not all(
+            isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) for c in coords[:2]):
         return None
     lng, lat = coords[:2]
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return None
+    p = {k: _text(p.get(k)) for k in ("name", "housenumber", "street", "district", "locality", "city", "country",
+                                       "osm_value", "type")}
     street = " ".join(x for x in (p.get("housenumber"), p.get("street")) if x)
     parts = [p.get("name"), street, p.get("district") or p.get("locality"), p.get("city"), p.get("country")]
     label = ", ".join(dict.fromkeys(x for x in parts if x))
