@@ -3,20 +3,43 @@
 > **Purpose:** everything a developer or AI coding agent needs to continue this project without the original conversation.
 > **Rule:** update this file in the **same commit** as any change to code, config, deployment or plans (see [How to update this file](#how-to-update-this-file)).
 
-**Last updated:** 2026-11-16 · **Branch:** `main` · **Latest change:** **v2.7.2**: deep review: 17 bugs fixed, smoother loading and maps
+**Last updated:** 2026-11-16 · **Branch:** `main` · **Latest change:** the backlog `UPDATES.txt` is now committed and rewritten; §0 sets the routine every AI agent follows before every prompt
 **Authors:** Ranjan Verma (GitHub `ranjanvrma`) and Chinmay Dahiya
 
 ---
 
 ## 0. If you are an AI agent, read this first
 
-1. Read this whole file, then `CLAUDE.md` (the working guide: folder map, commands, coding and design rules, pitfalls, done checklist), then `README.md` (architecture + setup), then run `git log --oneline -15`. This file says what is true now; `CLAUDE.md` says how to work. If they disagree, this file wins.
-2. CI runs the offline backend suite and frontend production build. The latest known backend result is **131 passing**; the frontend build also passed in CI.
-3. **Rules:**
+**Every AI agent working on this project follows the same routine, whichever tool it is and whoever started it.**
+The owner's own coding assistant does exactly this before every prompt, and any other agent (a teammate's tool,
+a new session, a background agent) must do the same, so nobody works from an old picture of the project.
+
+**Before every prompt or task, in this order:**
+1. **Read `UPDATES.txt`** (repository root), the owner's backlog, even when the task is about something else.
+   If the owner wrote a rough new note in it, rewrite that note into the file's format (goal, what to build, done
+   when, size) without losing anything he asked for.
+2. **Get the latest code:** `git fetch origin && git status -sb && git log --oneline -10`, and
+   `git pull --rebase origin main` when behind. If `main` moved, read the new commits
+   (`git log main..origin/main`, `git diff --stat main origin/main`) before changing anything: a teammate's change
+   can invalidate the plan.
+3. **Read this file** (it says what is true now), then `CLAUDE.md` (how to work: folder map, commands, coding and
+   design rules, known pitfalls, the done checklist), and skim `README.md`. If this file and `CLAUDE.md`
+   disagree, this file wins.
+
+**While and after working:**
+- **Keep `UPDATES.txt` current.** When an item is finished, delete it from PLANNED, add one line with its version
+  under DONE and renumber the rest; when it is partly done, rewrite it to say only what is left. Put ideas you
+  notice (bugs you could not fix, clear improvements) under SUGGESTIONS; they are not approved work until the
+  owner asks for them. The file is committed: change it in the same commit as the work it describes.
+- **Before committing:** fetch again, then run the checklist in `CLAUDE.md` section 12 (tests, build, a look at
+  desktop and phone width, no secrets, docs still true).
+- **Report** what changed, how it was checked and what was not checked, in plain words.
+
+**Rules:**
    - Update **HANDOFF.md in every commit** (header, affected sections, change-log row). The hook `.githooks/pre-commit` enforces it once `git config core.hooksPath .githooks` is set.
    - **No AI attribution anywhere:** no `Co-Authored-By` lines for AI tools, no assistant or tool names in code, docs or commit messages. The one exception is the file name `CLAUDE.md`, which coding tools look for by that name; its contents name no tool.
    - **Never commit secrets** (see §7 for where they live).
-   - **Documentation lives only in `README.md`, `HANDOFF.md` and `CLAUDE.md`.** The owners asked for no other doc files: keep the README short, put status and depth here, and keep `CLAUDE.md` for how to work (update it only when the rules or the structure change).
+   - **Documentation lives only in `README.md`, `HANDOFF.md` and `CLAUDE.md`**, plus the owner's backlog `UPDATES.txt` (committed since 2026-11-16). The owners asked for no other doc files: keep the README short, put status and depth here, and keep `CLAUDE.md` for how to work (update it only when the rules or the structure change).
    - Never push code; the human owner pushes their local commits. Deploy only when a human asks.
    - **Every release gets a version** (§13): bump `frontend/package.json` and `backend/app/main.py`, add the row to §13, create an annotated `vX.Y.Z` tag on the release commit, and push with `--follow-tags`. Docs-only commits get no version.
    - Keep the honesty rules: label data sources, keep external ratings separate from the suitability score, mark estimates, and never silently replace failed live data with mock data.
@@ -36,7 +59,7 @@
   - budget
   - browser-local saved trips (no account or email needed), security headers and request limits
   - **redesigned frontend**: light-mode bento layout, 3D globe, command menu, sheets, toasts with undo, Terms/Privacy/404 pages
-  - **131 backend tests pass**, the frontend builds, and CI runs on every push
+  - **187 backend tests pass**, the frontend builds, and CI runs on every push
 - **Deployed:** the public Vercel site and Azure backend are live (see [§8](#8-deployment-status)). Trip generation uses the public preview endpoint; the browser stores saved plans locally.
 
 ---
@@ -135,7 +158,7 @@ Diagram and request flow: README → *Architecture*. Key files:
 ```bash
 cd backend && python -m venv .venv && .venv/Scripts/pip install -r requirements.txt && cp .env.example .env
 .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000     # http://127.0.0.1:8000/docs
-.venv/Scripts/python -m pytest -q                                      # 131 passed, offline (last recorded CI run)
+.venv/Scripts/python -m pytest -q                                      # 187 passed, offline (v2.7.2)
 cd frontend && npm install && npm run dev                               # http://localhost:5173 (proxies /api)
 npm run build
 ```
@@ -199,7 +222,7 @@ CI (`ci.yml`) runs tests and the frontend build on every push.
    - Place photos (and BlurHash placeholders for them): the data has no images yet; Wikidata P18 / Wikimedia Commons is the free source. Only the globe uses a blurred placeholder today.
    - The current generation panel explains the work and shows elapsed time, but cannot report actual backend stages. True per-stage progress needs async loading and status polling.
    - Lottie: not used. Animations are Motion (sheets, toasts, menus), GSAP (scroll reveals, parallax, globe turns) and CSS. Add Lottie only with self-made or properly licensed animation files.
-3. **Owner's feature backlog:** the planned releases are listed at the end of §13, in order. Picking the stay on a map (v2.5.0) and must-see places (v2.7.0) have shipped; a guided chat is what is left of that item.
+3. **Owner's feature backlog:** `UPDATES.txt` in the repository root holds the planned releases in order, the agents' suggestions and what is done. Next up: a guided chat, then planning on a real graph, then multi-destination trips (v3.0.0), then research into similar products.
 4. **Credit Chinmay in GitHub contributors:** he commits with his GitHub email (his email is still unknown).
 5. **Dependabot:** review the currently open dependency PRs in GitHub. Minor and patch upgrades are grouped; major upgrades are ignored and should be considered separately with any required code changes.
 6. **Nice to have:**
@@ -244,7 +267,8 @@ CI (`ci.yml`) runs tests and the frontend build on every push.
 
 | Date | Commit | Change |
 |---|---|---|
-| 2026-11-16 | (this commit) | **v2.7.2.** A deep review of both sides and a smoothness pass, at the owner's request. **Backend:** a must-see dropped on one day (real travel slower than the estimate) is offered again on later days; a must-see is never removed as a "near duplicate" (one could vanish with no warning); must-see parks are visits, never used up as a rest stop; places the traveller added are not put in Google's 24 h "no match" memory (their ids repeat across trips); `/api/geo/reverse` and `/addresses` treat malformed Photon answers as nothing found instead of a 500; an empty day's warning names the day (it repeated word for word); the missed must-see reason no longer reads "did not fit: did not fit"; the in-memory city list is changed under its own lock. **Frontend:** Escape or Tab in the command menu over a sheet no longer reaches the sheet; a day tab that no longer exists after an edit falls back to all days (the days column went blank); only one regeneration runs at a time (the command menu could start a second); back during a rebuild closes the sheet cleanly; the planner checks that the stay cost is below the budget on the budget step; the must-see search needs a chosen city; map-picker points past the date line are wrapped; Enter during the autocomplete's debounce cannot pick a stale result; scroll reveals now run on a freshly opened trip; a toast says when older trips were removed to make room; focus stays in the step after the tenth must-see. **Smoothness:** loading states fill the window, so the footer no longer jumps (trip page layout shift 0.39 to 0.0002); the globe's land data is built in short steps with borders written straight into a typed array (longest home-page block 657 to 275 ms); the target pulse alone draws at half rate; the departure board stops flipping off screen; Leaflet markers, icons and lines keep their identity between renders; the Google map builds overlays only when the plan changes (a selection only resizes two markers) and removes them and the traffic layer when the page closes; an unchanged saved-trip list is not re-parsed on every tab switch; the sticky bar has no live blur on phones. Six new tests (187). Checked in headless Edge on the production build (scroll frames, long tasks, layout shift) and by using each fixed path; no console errors. Not fixed: cafe or restaurant must-sees (see §10) |
+| 2026-11-16 | (this commit) | Docs and backlog only, no version. At the owner's request: `UPDATES.txt` is now committed (removed from `.git/info/exclude`) and rewritten so any agent can follow it: how to use it, PLANNED items with goal, what to build, done when and size (guided chat; planning on a real graph; v3.0.0 multi-destination trips; the owner's new item, research into similar products such as headout.com and what would make TripAura stand out), SUGGESTIONS from agents (must-see cafes, frontend browser tests, city loading progress, place photos, small performance items, `TRUSTED_PROXY_COUNT` for Chinmay) and DONE. §0 now spells out the routine every AI agent follows before every prompt (read `UPDATES.txt`, fetch and pull, read HANDOFF and `CLAUDE.md`) and how to keep the backlog current; `CLAUDE.md` and the README point to it. Stale test counts (131) corrected to 187 |
+| 2026-11-16 | `ad51864` | **v2.7.2.** A deep review of both sides and a smoothness pass, at the owner's request. **Backend:** a must-see dropped on one day (real travel slower than the estimate) is offered again on later days; a must-see is never removed as a "near duplicate" (one could vanish with no warning); must-see parks are visits, never used up as a rest stop; places the traveller added are not put in Google's 24 h "no match" memory (their ids repeat across trips); `/api/geo/reverse` and `/addresses` treat malformed Photon answers as nothing found instead of a 500; an empty day's warning names the day (it repeated word for word); the missed must-see reason no longer reads "did not fit: did not fit"; the in-memory city list is changed under its own lock. **Frontend:** Escape or Tab in the command menu over a sheet no longer reaches the sheet; a day tab that no longer exists after an edit falls back to all days (the days column went blank); only one regeneration runs at a time (the command menu could start a second); back during a rebuild closes the sheet cleanly; the planner checks that the stay cost is below the budget on the budget step; the must-see search needs a chosen city; map-picker points past the date line are wrapped; Enter during the autocomplete's debounce cannot pick a stale result; scroll reveals now run on a freshly opened trip; a toast says when older trips were removed to make room; focus stays in the step after the tenth must-see. **Smoothness:** loading states fill the window, so the footer no longer jumps (trip page layout shift 0.39 to 0.0002); the globe's land data is built in short steps with borders written straight into a typed array (longest home-page block 657 to 275 ms); the target pulse alone draws at half rate; the departure board stops flipping off screen; Leaflet markers, icons and lines keep their identity between renders; the Google map builds overlays only when the plan changes (a selection only resizes two markers) and removes them and the traffic layer when the page closes; an unchanged saved-trip list is not re-parsed on every tab switch; the sticky bar has no live blur on phones. Six new tests (187). Checked in headless Edge on the production build (scroll frames, long tasks, layout shift) and by using each fixed path; no console errors. Not fixed: cafe or restaurant must-sees (see §10) |
 | 2026-11-15 | `17c2efd` | **v2.7.1.** Blank space removed, at the owner's request. **Trip page:** the map and budget column never stuck (the grid aligns items to the start, so the column was only as tall as its content), which left the right half of the page empty below the budget for most of the scroll. The column now spans the row, so the panel follows the days; it scrolls on its own when taller than the window. "Also worth considering" (now in two text columns), food recommendations and data sources moved out of the days column to full width; the food grid fits ten cards as two rows of five on a wide page. **Home:** gaps between sections `clamp(72px, 11vw, 136px)` to `clamp(48px, 7vw, 88px)` (about 240 px shorter at 1440); the describe box uses the card's full width instead of 820 px. **All pages:** less dead space above the footer (main bottom padding 72 to 48 px, footer margin 40 to 16 px). Checked in headless Edge: trip page scrolled at 1440 (panel stays at the top beside the days, then releases), home and My trips full page, trip page at 390; no console errors, no overflow |
 | 2026-11-15 | `97df8fd` | **v2.7.0.** Owner's backlog item "more ways in": **must-see places.** The planner's Tastes step has "Places you don't want to miss": a place search (Photon, near the destination) and "Pick one on the map" (the v2.5.0 map, now `planner/MapPicker.tsx` for both the stay and sights; places already added show as numbered pins). Up to 10, listed with remove buttons and on the boarding pass; cleared when the city changes. **API:** `TripRequest.must_see: [{name, location}]` (max 10, `extra=forbid`). **Backend:** `PlacesService.must_see_places` matches each to the city data (a place within 250 m sharing a name word, else one within 60 m of the pin; text search in live mode) or makes a `source=user` place with assumed hours; over 60 km from the centre is left out with a warning. **Scheduler:** must-sees skip the score, rating and fee thresholds (the score is still shown, with "On your must-see list" as the first reason), sort first so a near-duplicate never replaces one, get a per-day quota (ceil of those left over days left) with a bonus that outweighs any score, and anchor the day; any that is not planned is listed first under unscheduled with the reason and a warning. Cached city data is unchanged, so no `DATASET_VERSION` bump. Five new tests (181). Checked in headless Edge at 1440 and 390 px: Lisbon with Tower of Belem and the Oceanario from search and a point from the map, one per day in the plan, two matched to the city's records; no console errors, no page overflow. A map point named only by a postcode now takes the worded parts of its address |
 | 2026-11-15 | `214a6f9` | **v2.6.1.** Long amounts no longer overflow. The budget card printed the planned total inside the 132 px ring, so a sum like VND 7,162,504 spilled over the chart. The total now sits above the ring as its own line, and the ring shows the share of the budget used (">999%" past that). Legend rows, day bars, the budget line and the day card total wrap a long amount instead of pushing it out; the ticket's planned spend goes under its label and steps down a size when long. Checked in headless Edge at 1440 and 390 px with a 17-digit IDR plan: nothing outside the card or ticket, no page overflow, no console errors. Also fixed the change-log table (the v2.6.0 row sat above the separator line) |
@@ -319,7 +343,7 @@ TripAura uses semantic versioning, `vMAJOR.MINOR.PATCH`:
 
 | Version | Commit | Date | What it is |
 |---|---|---|---|
-| v2.7.2 | (this commit) | 2026-11-16 | Deep review: 17 bugs fixed, smoother loading, globe and maps |
+| v2.7.2 | `ad51864` | 2026-11-16 | Deep review: 17 bugs fixed, smoother loading, globe and maps |
 | v2.7.1 | `17c2efd` | 2026-11-15 | Blank spaces removed: trip page side column, home gaps, describe box |
 | v2.7.0 | `97df8fd` | 2026-11-15 | Must-see places, named or picked on a map, always fitted in |
 | v2.6.1 | `214a6f9` | 2026-11-15 | Long amounts fit the budget ring and the ticket in any currency |
@@ -350,7 +374,7 @@ TripAura uses semantic versioning, `vMAJOR.MINOR.PATCH`:
 | v0.2.0 | `353b86d` | 2026-11-07 | Worldwide open-data mode, cost model and currency conversion |
 | v0.1.0 | `e492999` | 2026-11-07 | First planner: engines, Jaipur demo data, Google-ready providers |
 
-**Planned** (from the owner's backlog, in order): a guided chat as another way in; a graph-based planning engine; **v3.0.0 multi-destination trips** (A to B to C).
+**Planned:** see `UPDATES.txt` (the owner's backlog, in order): a guided chat as another way in; a graph-based planning engine; **v3.0.0 multi-destination trips** (A to B to C); research into similar products.
 
 ---
 

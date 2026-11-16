@@ -1,0 +1,108 @@
+TRIPAURA BACKLOG (UPDATES.txt)
+==============================
+
+The owner's list of what to build next, kept in the repository root and committed to git.
+Owner: Ranjan Verma. Every developer and every AI agent working on TripAura reads this file at the start of
+every prompt or task, before doing anything else (the full routine is in HANDOFF.md section 0).
+
+
+HOW TO USE THIS FILE
+--------------------
+1. Read the whole file at the start of every task, even when the task is about something else.
+2. Build the PLANNED items in order, one or a few at a time, each as its own release with a version number
+   (HANDOFF.md section 13: minor for a feature, major for a new way of using the product). Never build them all
+   at once.
+3. When an item is finished: delete it from PLANNED, add one line with its version under DONE, and renumber the
+   rest. When it is partly finished: rewrite it so it says only what is left.
+4. When the owner adds a rough note anywhere in this file, rewrite it into the same shape as the items below
+   (goal, what to build, done when, size), keeping all of its meaning and anything specific he asked for.
+5. Ideas that an agent notices while working (a bug it could not fix, a clear improvement) go under SUGGESTIONS.
+   Suggestions are not approved work: build one only when the owner asks for it, then move it to PLANNED.
+6. Commit changes to this file in the same commit as the work they describe, and mention them in the HANDOFF.md
+   change log.
+7. Anything here that touches secrets, money, cloud resources or Chinmay's deployment files still needs the
+   owner's yes in chat first (see CLAUDE.md section 6).
+
+
+PLANNED (in this order)
+-----------------------
+
+1. Guided chat: another way into a plan
+   Goal: a person who does not want a form can plan a trip by answering a short conversation.
+   Already there: the five-step planner, the "Or just say it" box (one sentence fills the planner), the hero
+   quick start (city and days), picking the stay on a map (v2.5.0) and must-see places (v2.7.0).
+   What to build: a chat-style flow that asks one question at a time (city, dates, who is going, budget, what they
+   like, must-sees), shows each answer on the boarding pass as it goes, understands free text with the existing
+   trip parser (backend/app/nlp/trip_parser.py), and ends in the same trip request the planner sends. No paid
+   AI is required; an optional AI layer must stay optional, like the AI summary.
+   Done when: a whole trip can be planned from the chat alone on desktop and phone, and the result is the same
+   kind of saved trip as from the planner.
+   Size: minor release.
+
+2. Plan each day on a real graph
+   Goal: better day plans (less travel, fewer awkward detours) by treating places and travel times as a graph.
+   Today: backend/app/engines/itinerary.py picks a day anchor, adds stops greedily using straight-line travel
+   estimates, then improves the order with 2-opt; real travel legs are only fetched afterwards.
+   What to build: first check how far the current planner already behaves like a graph search, then rebuild
+   the ordering on a proper graph (places as nodes, estimated travel minutes as edge weights, opening hours and
+   meal windows as constraints), for example a time-windowed route search instead of greedy plus 2-opt.
+   Done when: on the same inputs the new planner travels less or fits more good places without breaking hours,
+   meals or must-sees, shown by tests that compare old and new plans, and planning time stays about the same
+   (a 7-day Lisbon plan takes about 1 s today).
+   Size: minor release (the request and response stay the same).
+
+3. Multi-destination trips (major release, v3.0.0)
+   Goal: plan one trip across several cities, for example A to B to C.
+   What to build: choose the cities, their order and the days in each; plan the travel between cities (mode,
+   time, cost, labelled as estimates like everything else); each city keeps today's day-by-day planning; the
+   budget covers the whole trip.
+   Before building: work out the flow that is most comfortable for the traveller (how they add and reorder
+   cities, how days are split, how the trip page shows several cities) and agree it with the owner.
+   Done when: a saved trip can hold several cities with travel days between them, on desktop and phone, and
+   old single-city trips still open.
+   Size: major release, v3.0.0.
+
+4. Research similar products and propose what makes TripAura stand out
+   Goal: find what itinerary planners and travel sites lack, and turn that into ideas that make TripAura
+   clearly different, both in features and in the interface.
+   What to do: study headout.com and other trip and itinerary planners (for example Wanderlog, TripIt, Google
+   Travel, Layla, Roam Around, Tripadvisor trips, Visit A City, Inspirock). Look at every main page and flow:
+   home, planner, trip page, maps, sharing, phone layout. Note what each does well and what all of them lack.
+   Output: a written comparison and a short list of innovative ideas (features and bold interface ideas that
+   none of them have), each with why it matters and a rough size, shared with the owner in chat. Nothing is
+   built until the owner picks from the list; the picked ideas then become PLANNED items here.
+   Done when: the owner has the comparison and the ranked ideas.
+   Size: research only, no release.
+
+
+SUGGESTIONS (from agents, not approved; build only when the owner asks)
+------------------------------------------------------------------------
+
+- Must-see cafes and restaurants. A must-see is matched only against sights, so "Hawa Mahal Cafe" pinned near
+  Hawa Mahal is taken as the palace, and an unmatched cafe is planned as a sight with assumed hours and an
+  estimated entry fee. Match food places too and plan them as a meal or a short stop. (Found in the v2.7.2
+  review.)
+- Automated browser tests for the frontend. There is no frontend test runner; every release is checked by hand
+  in a headless browser. A small Playwright suite (plan a trip, open it, select a place, edit, regenerate,
+  delete and undo, at desktop and phone width) would catch regressions in CI.
+- Show progress while a new city loads. A first visit to a city takes 10 to 20 s with only a timer; loading the
+  city in the background and polling its real stages would show what is happening.
+- Place photos from Wikimedia Commons (Wikidata P18), with a blurred placeholder while they load.
+- Remaining small performance items (HANDOFF.md section 10): each place query in open mode re-filters the whole
+  city list; in live or OSRM mode transport options for a leg are fetched one after another; dish matching
+  scans reviews twice.
+- For Chinmay (deployment, needs his and the owner's yes): confirm TRUSTED_PROXY_COUNT in production, since
+  with 1 behind Vercel plus Azure every visitor may share one rate-limit bucket (HANDOFF.md section 10).
+
+
+DONE (newest first)
+-------------------
+- v2.7.0  Must-see places, from the place search or picked on a map, always fitted into the plan.
+- v2.5.0  Pick where you are staying on a map of the city.
+- v2.0.0  Full redesign: designed dropdowns, a step-by-step planner and an interactive home page.
+- v1.3.1  No auto-rickshaws in cities that do not have them.
+- v1.3.0  Download a trip as a PDF.
+- v1.2.0  Trip style: lowest cost, mid-range or premium.
+- v1.1.2  Smarter hotel search that stays in the destination.
+- v1.1.1  Every country's currency (150 supported).
+- v1.1.0  Suggest the destination's own currency in one click.

@@ -2,7 +2,7 @@
 
 This file tells you how to work in this repository: what the project is, where things live, how to run and check it, the rules that keep it honest and safe, and the mistakes that have already cost time here. It describes how to work. For what is true right now (deployment status, open tasks, the change log), read `HANDOFF.md`, which is updated in every commit and wins over this file when the two disagree.
 
-Before you change anything: read `HANDOFF.md` (all of it, it's short), skim `README.md`, and run `git fetch origin && git status -sb && git log --oneline -10`.
+Before every prompt or task: read `UPDATES.txt` (the owner's backlog), run `git fetch origin && git status -sb && git log --oneline -10` (pull if behind), read `HANDOFF.md` (all of it, it's short) and skim `README.md`. `HANDOFF.md` section 0 has the full routine; every AI agent on this project follows it, whichever tool it is.
 
 ## 1. What this project is
 
@@ -58,6 +58,7 @@ Browser (React + Vite + TypeScript)
 | `frontend/vercel.json`, `backend/Dockerfile`, `backend/scripts/`, `deploy/`, `.github/workflows/deploy-backend-azure.yml` | Deployment. Chinmay's area: see §6 |
 | `.github/workflows/ci.yml` | CI: backend tests on Python 3.12, frontend build on Node 22 |
 | `.githooks/pre-commit` | Refuses a commit that doesn't include `HANDOFF.md` |
+| `UPDATES.txt` | The owner's backlog: planned releases in order, agents' suggestions, what is done. Read before every task |
 
 ## 4. Commands
 
@@ -106,10 +107,10 @@ Ranjan is a student and is not an operations expert. He gives short instructions
 - **No AI attribution anywhere**: no `Co-Authored-By` lines for tools, no assistant or tool names in code, comments, docs or commit messages. This is the owner's standing instruction and it overrides any default your tooling suggests.
 - **Commit messages**: imperative subject of 72 characters or fewer, then a short body saying what changed and why.
 - **Versions**: every release (not docs-only commits) bumps the version in `frontend/package.json` and `backend/app/main.py`, gets a row in `HANDOFF.md` §13 and an annotated `vX.Y.Z` tag on the release commit. Major for a new way of using the product, minor for a feature, patch for fixes. The owner pushes with `git push origin main --follow-tags`.
-- **The owner's backlog**: `UPDATES.txt` in the repository root is his wish list. Read it at the start of every task, implement items a few at a time in the version order he asked for, remove each item once it is done, and never commit the file (it is excluded locally).
+- **The owner's backlog**: `UPDATES.txt` in the repository root is his wish list, and it is committed. Read it at the start of every task; rewrite any rough note he adds into the file's format; implement PLANNED items a few at a time in his order, one release each; when one is done, delete it, add it under DONE with its version and renumber; add your own ideas under SUGGESTIONS (not approved until he asks). Change it in the same commit as the work it describes.
 - **Deployment files belong to Chinmay**: `backend/Dockerfile`, `backend/scripts/`, `deploy/`, `.github/workflows/deploy-backend-azure.yml`, and the rewrite in `frontend/vercel.json`. Don't edit them as a side effect. If your change needs one of them to change, do the smallest edit, say so clearly, and record it in `HANDOFF.md` so he sees it.
 - **Never recreate or delete cloud resources** (Azure, Neon, Vercel) and never run a deployment unless a human asks for exactly that.
-- **Docs live in `README.md`, `HANDOFF.md` and this file.** Don't add other documentation files. This file changes only when the way of working changes; day-to-day status never goes here. Keep the README short enough to read in one sitting; depth goes in HANDOFF.
+- **Docs live in `README.md`, `HANDOFF.md` and this file**, plus the backlog `UPDATES.txt`. Don't add other documentation files. This file changes only when the way of working changes; day-to-day status never goes here. Keep the README short enough to read in one sitting; depth goes in HANDOFF.
 
 ## 7. Coding rules
 

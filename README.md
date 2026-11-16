@@ -141,7 +141,7 @@ See [HANDOFF.md](HANDOFF.md#8-deployment-status) for deployment details and outs
 
 ## Contributing
 
-1. **Catch up:** fetch and review the latest changes, read [HANDOFF.md](HANDOFF.md), and skim `git log --oneline -15`.
+1. **Catch up, before every task:** read [UPDATES.txt](UPDATES.txt) (the owner's backlog), fetch and review the latest changes, read [HANDOFF.md](HANDOFF.md) (section 0 is the routine every AI agent follows), and skim `git log --oneline -15`.
 2. **One-time setup per clone:** `git config core.hooksPath .githooks`. This hook blocks commits that don't update `HANDOFF.md`; for trivial commits, bypass with `SKIP_HANDOFF=1 git commit ...`.
 3. **Commit locally:** every change updates `HANDOFF.md` (status, decisions, change log). Never commit secrets. Do not push; push the commits yourself when ready.
 4. **GitHub credit:** commit with the email on your GitHub account so you appear in Contributors.
