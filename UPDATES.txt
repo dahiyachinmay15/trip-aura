@@ -10,6 +10,8 @@ Done: suggest the destination's own currency in one click (v1.1.0), every countr
 
 4. Research similar sites. Study headout.com and other itinerary planners (Wanderlog, TripIt, Google Travel and more) page by page, find what they all lack, and give the owner a short list of innovative features and bold UI ideas that would make TripAura stand out. Research only; nothing is built until the owner picks.
 
+5. More deep learning where it really helps. The project already runs a small local embedding model (bge-small through fastembed, backend/app/nlp/semantic.py) for interest matching and review sentiment. Find other places where a learned model would clearly improve the plans or the experience (for example ranking places from their descriptions, guessing how long a visit takes, reading reviews for dishes, or understanding the free-text trip box better), build only what measurably helps, keep it free, local and optional, and keep the planner working without it.
+
 Suggestions (not approved):
 - Must-see cafes and restaurants: they are matched only against sights, so a cafe pinned near a palace becomes the palace.
 - Automated browser tests for the frontend (there is no frontend test runner).

@@ -47,7 +47,7 @@ export default function Layout({ banner }: { banner?: React.ReactNode }) {
       <ScrollProgress />
       <header className="topbar">
         <div className="topbar-inner">
-          <Link to="/" className="brand" viewTransition aria-label="TripAura home"><Logo /> <span>TripAura</span></Link>
+          <Link to="/" className="brand" viewTransition aria-label="TripAura home"><Logo size={28} /> <span className="brand-name">Trip<span>Aura</span></span></Link>
           <nav className="nav-desktop" aria-label="Main">
             {LINKS.map((l) => (
               <NavLink key={l.to} to={l.to} end viewTransition onPointerEnter={warm(l.to)} onFocus={warm(l.to)}
@@ -86,7 +86,7 @@ export default function Layout({ banner }: { banner?: React.ReactNode }) {
       <footer className="footer">
         <div className="footer-inner">
           <div className="footer-brand">
-            <Link to="/" className="brand"><Logo /> <span>TripAura</span></Link>
+            <Link to="/" className="brand brand-lg"><Logo full size={46} /> <span className="brand-name">Trip<span>Aura</span></span></Link>
             <p className="muted">Day-by-day trip plans for any city, built from open map data.</p>
           </div>
           <nav className="footer-col" aria-label="Product">

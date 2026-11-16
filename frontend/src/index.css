@@ -172,6 +172,10 @@ code { font-size: .9em; background: var(--surface-2); border: 1px solid var(--li
 }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 680; letter-spacing: -.02em; color: var(--ink); text-decoration: none; font-size: 1.08rem; }
 .brand:hover { color: var(--ink); }
+/* the name in the logo's two colours: Trip in ember, Aura in teal (a logotype, so the contrast rule does not apply) */
+.brand-name { color: var(--accent); }
+.brand-name > span { color: var(--primary); }
+.brand-lg { gap: 12px; font-size: 1.3rem; }
 .nav-desktop { display: flex; align-items: center; gap: 2px; }
 .nav-link { color: var(--muted); text-decoration: none; padding: 7px 12px; border-radius: var(--r-s); font-weight: 520; transition: background var(--fast) var(--ease), color var(--fast); }
 .nav-link:hover { color: var(--ink); }
