@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -16,6 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import DataMode, get_settings
 from app.core.errors import NotFoundError, TripAuraError
 from app.core.logging_config import configure_logging
+from app.core.network import HttpCacheMiddleware, RequestContextMiddleware
 from app.core.security import error_response, exception_response, request_guard, security_headers
 from app.db.database import init_engine
 from app.routers import geo, meta, nlp, routes, trips
@@ -63,17 +65,27 @@ def _warm_up() -> None:
 
 
 # Docs routes are registered below so DOCS_ENABLED is checked per request.
-app = FastAPI(title="TripAura API", version="2.8.0", lifespan=lifespan, docs_url=None, redoc_url=None,
+app = FastAPI(title="TripAura API", version="2.9.0", lifespan=lifespan, docs_url=None, redoc_url=None,
               openapi_url=None,
               description="Personalised day-wise travel itineraries for any city (open data, optional Google).")
 # Middleware: the last one added runs first. Order of execution:
-# security headers -> CORS (answers preflights) -> origin check + per-IP rate limit -> routes.
+# request id, timing and size limit -> security headers -> CORS (answers preflights)
+# -> origin check + per-IP rate limit -> gzip -> caching rules and ETags -> routes.
+RATE_HEADERS = ["Retry-After", "RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "X-Request-ID",
+                "Server-Timing"]
+app.add_middleware(HttpCacheMiddleware)
+# gzip sits right outside the cache layer: the ETag is taken from the uncompressed body, and gzip sees one whole
+# body, so its 1 kB threshold works (outside the BaseHTTPMiddleware layers every body arrives streamed). A trip plan
+# is 100 to 300 kB of JSON. No cookie or secret is ever echoed in a response, so compression cannot leak one
+# (the BREACH attack needs both).
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 app.add_middleware(BaseHTTPMiddleware, dispatch=request_guard)
 app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins,
                    allow_origin_regex=settings.cors_origin_regex or None, allow_credentials=False,
-                   allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type"],
-                   expose_headers=["Retry-After"])
+                   allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type", "X-Request-ID"],
+                   expose_headers=RATE_HEADERS)
 app.add_middleware(BaseHTTPMiddleware, dispatch=security_headers)
+app.add_middleware(RequestContextMiddleware, max_body_bytes=settings.max_request_bytes)
 
 
 @app.exception_handler(TripAuraError)
@@ -88,11 +100,7 @@ async def validation_error(_: Request, exc: RequestValidationError) -> JSONRespo
     return error_response(422, "validation_error", "Invalid trip details", issues)
 
 
-@app.exception_handler(Exception)
-async def unhandled(_: Request, exc: Exception) -> JSONResponse:
-    log.exception("Unhandled error")
-    return JSONResponse(status_code=500, content={"error": {"code": "internal_error",
-                                                            "message": "Unexpected server error"}})
+# Unexpected errors are answered by RequestContextMiddleware (app/core/network.py), with the request id.
 
 
 @app.get("/api/health")

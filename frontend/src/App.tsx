@@ -48,13 +48,32 @@ function useServerStatus() {
   return { status, error, waking };
 }
 
+/** Whether the browser has a network connection; it says so the moment that changes. */
+function useOnline() {
+  const [online, setOnline] = useState(() => navigator.onLine !== false);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  return online;
+}
+
 export default function App() {
   const { status, error, waking } = useServerStatus();
+  const online = useOnline();
   const onPlanner = useLocation().pathname === "/";
 
   const banner = (
     <div className="banners">
-      {waking > 0 && !status && (
+      {!online && (
+        <div className="notice notice-warn" role="status">
+          You're offline. Saved trips still open; planning a new trip needs a connection.
+        </div>
+      )}
+      {online && waking > 0 && !status && (
         <div className="notice notice-info" role="status">
           <span className="spinner" aria-hidden /> Connecting to the TripAura server. It may be starting up, which can take up to a minute
           (attempt <span className="num">{waking}</span> of {WAKE_ATTEMPTS}).

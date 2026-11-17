@@ -97,6 +97,7 @@ class Settings(BaseSettings):
     # How many proxies in front of the app append to X-Forwarded-For: 1 = Azure ingress only, 2 = Vercel rewrite + Azure.
     trusted_proxy_count: int = Field(default=1, ge=1, le=5)
     rate_limit_enabled: bool = True
+    max_request_bytes: int = 65_536   # larger request bodies get 413 (a trip request is a few kB)
 
     # Engine tuning (not secrets; overridable for experiments)
     max_candidate_places: int = Field(default=150, ge=10, le=500)

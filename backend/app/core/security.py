@@ -27,6 +27,9 @@ STATIC_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    # API answers are data for this site's own pages, never something another site may embed
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "X-Permitted-Cross-Domain-Policies": "none",
 }
 
 
@@ -91,7 +94,14 @@ async def request_guard(request: Request, call_next):
         if origin is not None and not origin_allowed(origin, request, settings):
             return exception_response(CsrfError("Request origin is not allowed"))
     if settings.rate_limit_enabled and method != "OPTIONS":
-        wait = limiter.hit(ip_route_class(method, request.url.path), client_ip(request, settings))
-        if wait:
-            return exception_response(RateLimitedError(wait))
+        quota = limiter.take(ip_route_class(method, request.url.path), client_ip(request, settings))
+        # RateLimit-* (IETF draft, as most APIs send them): how many requests are left and when the quota refills
+        quota_headers = {"RateLimit-Limit": str(quota.limit), "RateLimit-Remaining": str(quota.remaining),
+                         "RateLimit-Reset": str(quota.reset)}
+        if quota.wait:
+            response = exception_response(RateLimitedError(quota.wait))
+        else:
+            response = await call_next(request)
+        response.headers.update(quota_headers)
+        return response
     return await call_next(request)

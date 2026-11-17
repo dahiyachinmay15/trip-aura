@@ -92,7 +92,7 @@ def test_address_suggestions_skip_features_without_coordinates(client, monkeypat
         {"properties": {"name": "Rossio", "city": "Lisbon"}, "geometry": {"coordinates": [-9.1394, 38.7139]}},
     ]
     resp = httpx.Response(200, json={"features": features}, request=httpx.Request("GET", "https://photon.test"))
-    monkeypatch.setattr(geo.httpx, "get", lambda *a, **k: resp)
+    monkeypatch.setattr(geo, "_http_get", lambda *a, **k: resp)
     r = client.get("/api/geo/addresses", params={"q": "rossio"})
     assert r.status_code == 200
     results = r.json()["results"]
@@ -118,7 +118,7 @@ def test_address_search_matches_inside_names_and_stays_local(client, monkeypatch
                  feat("Golden Inn", "hotel", 75.81, 26.90), feat("City Mall", "mall", 75.78, 26.93)]
         return httpx.Response(200, json={"features": feats}, request=httpx.Request("GET", "https://photon.test"))
 
-    monkeypatch.setattr(geo.httpx, "get", fake_get)
+    monkeypatch.setattr(geo, "_http_get", fake_get)
     r = client.get("/api/geo/addresses", params={"q": "inn", "lat": 26.91, "lng": 75.79, "city": "Jaipur, India"})
     assert r.status_code == 200
     names = [x["name"] for x in r.json()["results"]]
@@ -138,7 +138,7 @@ def test_reverse_lookup_names_a_picked_point_and_keeps_its_coordinates(client, m
                 "geometry": {"coordinates": [-9.1400, 38.7150]}}
         return httpx.Response(200, json={"features": [feat]}, request=httpx.Request("GET", "https://photon.test"))
 
-    monkeypatch.setattr(geo.httpx, "get", fake_get)
+    monkeypatch.setattr(geo, "_http_get", fake_get)
     r = client.get("/api/geo/reverse", params={"lat": 38.7139, "lng": -9.1394})
     assert r.status_code == 200
     res = r.json()["result"]
@@ -152,14 +152,14 @@ def test_reverse_lookup_reports_nothing_found_and_failures(client, monkeypatch):
     from app.routers import geo
 
     empty = httpx.Response(200, json={"features": []}, request=httpx.Request("GET", "https://photon.test"))
-    monkeypatch.setattr(geo.httpx, "get", lambda *a, **k: empty)
+    monkeypatch.setattr(geo, "_http_get", lambda *a, **k: empty)
     r = client.get("/api/geo/reverse", params={"lat": 0, "lng": 0})
     assert r.status_code == 200 and r.json()["result"] is None
 
     def down(*a, **k):
         raise httpx.ConnectError("down")
 
-    monkeypatch.setattr(geo.httpx, "get", down)
+    monkeypatch.setattr(geo, "_http_get", down)
     r = client.get("/api/geo/reverse", params={"lat": 10, "lng": 10})
     assert r.status_code >= 500 and r.json()["error"]["code"]
     assert client.get("/api/geo/reverse", params={"lat": 91, "lng": 0}).status_code == 422
@@ -224,7 +224,7 @@ def test_unexpected_photon_answers_mean_nothing_found_not_a_crash(client, monkey
               {"features": [{"properties": "x", "geometry": {"coordinates": [True, 38.7]}}]}]
     for body in bodies:
         resp = httpx.Response(200, json=body, request=httpx.Request("GET", "https://photon.test"))
-        monkeypatch.setattr(geo.httpx, "get", lambda *a, _r=resp, **k: _r)
+        monkeypatch.setattr(geo, "_http_get", lambda *a, _r=resp, **k: _r)
         r = client.get("/api/geo/reverse", params={"lat": 38.7, "lng": -9.1})
         assert r.status_code == 200 and r.json()["result"] is None, (body, r.text)
         assert client.get("/api/geo/addresses", params={"q": "rossio"}).status_code == 200, body

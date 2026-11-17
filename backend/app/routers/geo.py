@@ -34,8 +34,20 @@ NEAR_KM = 40          # "in the destination"
 FAR_KM = 150          # dropped when there are matches nearer than NEAR_KM
 
 
+_client: httpx.Client | None = None
+
+
+def _http_get(url: str, **kw) -> httpx.Response:
+    """One shared client: autocomplete sends a lookup every few keystrokes, and a kept-alive connection to Photon
+    saves a TCP and TLS handshake (often 100 ms or more) on each of them."""
+    global _client
+    if _client is None:
+        _client = httpx.Client(limits=httpx.Limits(max_connections=16, max_keepalive_connections=8, keepalive_expiry=60))
+    return _client.get(url, **kw)
+
+
 def _photon(url: str, ua: str, params: dict) -> list[dict]:
-    r = httpx.get(url, params=params, timeout=8, headers={"User-Agent": ua})
+    r = _http_get(url, params=params, timeout=8, headers={"User-Agent": ua})
     r.raise_for_status()
     body = r.json()
     features = body.get("features") if isinstance(body, dict) else None

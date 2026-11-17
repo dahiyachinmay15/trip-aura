@@ -10,6 +10,7 @@ import math
 import threading
 import time
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from fastapi import Request
 
@@ -35,6 +36,14 @@ LIMITS: dict[str, Limit] = {
 }
 
 
+class Quota(NamedTuple):
+    """One request's view of its bucket, sent back as RateLimit-* headers."""
+    wait: int          # 0 when allowed, otherwise seconds until a token is free (Retry-After)
+    limit: int         # bucket size
+    remaining: int     # whole requests left right now
+    reset: int         # seconds until the bucket is full again
+
+
 class RateLimiter:
     def __init__(self, max_buckets: int = 50_000):
         self._buckets: dict[tuple[str, str], tuple[float, float]] = {}   # -> (tokens, last refill)
@@ -43,18 +52,26 @@ class RateLimiter:
 
     def hit(self, route_class: str, key: str, limit: Limit | None = None, now: float | None = None) -> int:
         """Take one token. Returns 0 when allowed, otherwise the seconds to wait (Retry-After)."""
+        return self.take(route_class, key, limit, now).wait
+
+    def take(self, route_class: str, key: str, limit: Limit | None = None, now: float | None = None) -> Quota:
+        """Take one token and report the bucket's state afterwards."""
         limit = limit or LIMITS[route_class]
         now = time.monotonic() if now is None else now
         with self._lock:
             tokens, last = self._buckets.get((route_class, key), (float(limit.capacity), now))
             tokens = min(float(limit.capacity), tokens + (now - last) * limit.rate)
+            wait = 0
             if tokens >= 1.0:
-                self._buckets[(route_class, key)] = (tokens - 1.0, now)
+                tokens -= 1.0
+                self._buckets[(route_class, key)] = (tokens, now)
                 if len(self._buckets) > self._max:
                     self._prune(now)
-                return 0
-            self._buckets[(route_class, key)] = (tokens, now)
-            return max(1, math.ceil((1.0 - tokens) / limit.rate))
+            else:
+                self._buckets[(route_class, key)] = (tokens, now)
+                wait = max(1, math.ceil((1.0 - tokens) / limit.rate))
+            reset = math.ceil((limit.capacity - tokens) / limit.rate)
+            return Quota(wait, limit.capacity, int(tokens), reset)
 
     def _prune(self, now: float) -> None:
         """Drop buckets that have refilled completely (they carry no state)."""

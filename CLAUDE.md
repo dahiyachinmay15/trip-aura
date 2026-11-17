@@ -39,8 +39,8 @@ Browser (React + Vite + TypeScript)
 
 | Path | What it holds |
 |---|---|
-| `backend/app/main.py` | App, middleware order (security headers → CORS → origin check and rate limit → routes), error envelope |
-| `backend/app/core/` | `config.py` (every setting and default), `security.py`, `ratelimit.py`, `errors.py`, small pure helpers (`text.fold`, `geo`, `timeutil`, `urls`) |
+| `backend/app/main.py` | App, middleware order (request id and size limit → security headers → CORS → origin check and rate limit → gzip → caching and ETags → routes), error envelope |
+| `backend/app/core/` | `config.py` (every setting and default), `security.py`, `ratelimit.py`, `network.py` (request ids and timing, body size limit, caching rules and ETags), `errors.py`, small pure helpers (`text.fold`, `geo`, `timeutil`, `urls`) |
 | `backend/app/routers/` | `trips.py` (only `/preview`), `geo.py` (city and address autocomplete, naming a point picked on the map), `nlp.py` (parse a trip description), `meta.py` (status, form options), `routes.py` (compare transport modes), `deps.py` |
 | `backend/app/services/` | `itinerary_service.py` (the pipeline), `providers.py` (picks providers from `DATA_MODE`), `places_service.py`, `enrichment.py` (Google ratings), `fx_service.py`, `ai_service.py` (optional summary) |
 | `backend/app/engines/` | `itinerary.py` (scheduler), `recommendation.py` (suitability score), `food.py`, `transport.py`, `budget.py`, `costs.py`, `fares.py`, `pace.py`, `style.py` (trip style profiles) |
@@ -171,6 +171,9 @@ These come from the original brief and are covered by tests. They are the produc
 
 - The API is stateless and public: no cookies, no accounts. Protection is layered: an Origin check on every POST, CORS limited to explicit origins without credentials, per-IP token-bucket rate limits (`core/ratelimit.py`), strict input limits, security headers on every response, and http(s)-only URLs in anything rendered as a link.
 - Client IP is read from the right-hand side of `X-Forwarded-For`, counted by `TRUSTED_PROXY_COUNT`. Don't switch to the first entry: a client can forge that.
+- **Caching is opt-in.** Every API answer is `no-store` unless its path is in `CACHE_RULES` (`core/network.py`), which gets a weak ETag and `304 Not Modified` on a matching `If-None-Match`. Add a path there only if its answer is public and the same for everyone (form options, the offline city index); never a trip plan, an address search or anything a person typed.
+- Every answer carries `X-Request-ID`, `Server-Timing` and `RateLimit-Limit/-Remaining/-Reset`; a 500 has the id in its body too. Logs show the path without its query string, because the query can hold what a person typed. Bodies over `MAX_REQUEST_BYTES` get 413.
+- **Outbound calls** go through a pooled, kept-alive client. `OpenHttp.get_json` retries a short failure once (connection refused or reset, 502/503/504, a 429 with a short `Retry-After`) after exponential backoff with jitter, never a timeout or a 4xx, and has a circuit breaker per host. Don't add retries to POSTs or to calls inside a plan's time budget without checking the total time.
 - User text never goes into SQL, SPARQL or Overpass queries as text. Coordinates are validated as finite numbers; identifiers are matched against strict patterns (`core/urls.py`, `overture.safe_release`).
 - The frontend's production CSP is generated in `vite.config.ts`. Any new third-party host (script, font, image, API) must be added there, and the page headers live in `frontend/vercel.json`.
 - Secrets exist only in `.env` files and in the hosting providers' settings. To check whether one is set, test for presence or length; never echo the value.
@@ -212,6 +215,7 @@ Each of these either happened in this project or was narrowly avoided.
 - *Judging the look without seeing it.* When the in-app browser cannot take screenshots, drive headless Edge or Chrome over the DevTools protocol and read the images; a redesign checked only by the build is not checked.
 - *Pulling a heavy library into the entry bundle.* three.js and the Natural Earth country data (about 230 kB gzipped) must stay behind the lazy `Globe`; Leaflet must stay out of the entry bundle: it loads with the trip page or when the planner's map picker opens. After touching imports or `manualChunks`, check which files `dist/index.html` preloads.
 - *Hiding content for an entrance animation and not revealing it.* Use `useScrollMotion`, which never hides anything already on screen and always cleans up.
+- *Putting gzip outside a `BaseHTTPMiddleware` layer.* Those layers stream every body, so gzip compressed even 15-byte answers; it sits just outside the caching layer, which sends one whole body.
 - *Letting two stacked overlays both react to a key.* The Sheet listens for Escape and Tab on the document, so the command menu over it must stop those keys (`stopImmediatePropagation`), or one Escape closes both.
 - *Calling `history.back()` to close an overlay.* It undoes a navigation the user just made from inside the overlay. `useBackToClose` already handles this; use it as is.
 - *Passing inline functions or fresh arrays to effects and map components.* See §7. `useSWR` refetches on every tab focus; it keeps the old object when the data is unchanged, and effects that apply something once (the planner's prefill) must guard on a version, not on their dependencies.
