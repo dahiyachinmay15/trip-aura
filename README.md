@@ -23,7 +23,8 @@ Give it a city and where you're staying, plus your dates, budget, interests, die
 - **Try a different start.** The free-text planner offers rotating trip examples, and a saved itinerary can be edited and rebuilt without starting over. The new plan replaces the old one only after it is ready, with a short Undo option.
 - **Your must-sees, always in.** Name up to ten places you don't want to miss, or tap them on a map. Each one is fitted into a day when it is open, spread over the trip, and the plan says plainly if one could not fit.
 - **Finds your hotel.** The hotel search stays in your destination and matches a word anywhere in a name, so "inn" finds Holiday Inn and Golden Inn, with places to stay listed first. Or skip the search: pick the spot on a map of the city, and every day starts from exactly there.
-- **Made to be used.** A 3D globe with every country outlined, lit where it is daytime right now, that turns to your destination; a planner that asks one question at a time while a boarding pass fills in beside it; and, on the home page, the four steps of planning with a working demo of the route ordering. Each plan opens as a ticket with a ribbon of how every day is spent and charts of where the budget goes.
+- **Made to be used.** A line-art compass and paper-plane mark; a 3D globe with every country outlined, lit where it is daytime right now, that turns to your destination; a planner that asks one question at a time while a boarding pass fills in beside it; and, on the home page, the four steps of planning with a working demo of the route ordering. Each plan opens as a ticket with a ribbon of how every day is spent and charts of where the budget goes.
+- **A little more resilient.** Larger API responses are compressed, public lookups can be revalidated instead of downloaded again, and transient network failures get a retry. Request IDs help trace errors, while trip plans and address searches are kept out of shared caches.
 - **Take it with you.** Download any plan as a PDF: a cover with the totals and budget, a page per day with times, stops, rides and costs, then food, notes and sources.
 - **No account.** Plans are saved in your browser on this device. They do not sync, and clearing site data removes them.
 
@@ -58,6 +59,8 @@ flowchart LR
    - Each day is built around its best sight, ordered to minimise travel, checked against opening hours, and given meals near each stop.
    - Each stop then gets a transport leg with alternatives.
 5. **Cost and explain.** Fares, meals and fees come from a country price index plus currency conversion. Estimates and verified amounts are kept apart, and over-budget plans get savings suggestions.
+
+**Network behavior:** the API returns a request ID and timing header so a server error can be traced without logging the text a traveller entered. Public form choices, city suggestions and status use cache headers and ETags; trip plans and address searches are marked `no-store`. Larger responses use gzip. The browser retries temporary GET failures and shares identical GETs already in progress; outbound open-data requests reuse connections, retry selected temporary failures and briefly pause a host after repeated failures.
 
 | Folder | What lives there |
 |---|---|
@@ -102,7 +105,7 @@ npm run dev
 Open <http://localhost:5173>, pick a city (e.g. "Lisbon") and a hotel, then generate. API docs are at <http://127.0.0.1:8000/docs>.
 
 **Tests:**
-- Backend: `cd backend && .venv/Scripts/python -m pytest -q` (174 tests, fully offline)
+- Backend: `cd backend && .venv/Scripts/python -m pytest -q` (202 tests, fully offline)
 - Frontend: `cd frontend && npm run build`
 
 ## Configuration
@@ -137,7 +140,9 @@ See [HANDOFF.md](HANDOFF.md#8-deployment-status) for deployment details and outs
 | GET | `/api/geo/cities?q=` · `/api/geo/addresses?q=&lat=&lng=&city=` | City and hotel autocomplete |
 | GET | `/api/geo/reverse?lat=&lng=` | The nearest address to a point picked on the map |
 | POST | `/api/nlp/parse-trip` | Free-text description → form fields |
+| GET | `/api/meta/options` | Planner choices: interests, food, pace, style, transport and currencies |
 | GET | `/api/meta/status` · `/api/health` | Configuration status · health check |
+| POST | `/api/routes/compare` | Compare transport options between two points |
 
 ## Contributing
 
